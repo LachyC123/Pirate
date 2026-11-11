@@ -53,7 +53,7 @@ export class BattleScene extends Phaser.Scene {
     this.fx = this.add.graphics();
     this.A = [new Actor(this, lookOf(S), this.view.f[0].weapon, false, this.laneX(this.view.f[0].pos), GY), new Actor(this, foe.look, this.view.f[1].weapon, true, this.laneX(this.view.f[1].pos), GY)];
     this.A[0].setWeapon(this.view.f[0].weapon, offDraw(S, this.view.f[0].weapon));
-    this.anchors = [0, 1].map((i) => { const ws = weaponSprite(WEAPONS[this.view.f[i].weapon].sprite); return this.add.image(0, GY + 3, tex(this, 'anchor' + i, ws.pix)).setOrigin(ws.gx / ws.pix.w, ws.gy / ws.pix.h).setAngle(i === 0 ? 90 : 90).setFlipX(i === 1).setVisible(false).setDepth(1); });
+    this.anchors = [0, 1].map((i) => { const ws = weaponSprite(WEAPONS[this.view.f[i].weapon].sprite); return this.add.image(0, GY + 3, tex(this, 'anchor' + i, ws.pix)).setOrigin(0.5, 0.5).setFlipX(i === 1).setVisible(false).setDepth(3); });
     this.A[0].img.setDepth(2); this.A[1].img.setDepth(1); this.fx.setDepth(3);
 
     const hud = (side: string) => h('div.hud.' + side, null);
@@ -137,7 +137,7 @@ export class BattleScene extends Phaser.Scene {
       this.anchors[i]?.setVisible(live && f.anchor !== null);
       if (live && f.anchor !== null) {
         const ax = this.laneX(f.anchor);
-        this.anchors[i].setPosition(ax, GY - 2);
+        this.anchors[i].setPosition(ax - dir * 6, GY - 5);
         chain(Math.round(a.x + dir * 12), GY - 20, ax - dir * 4, GY - 3);
       }
       if (!live || f.pending !== 'cast') continue;

@@ -131,13 +131,13 @@ export function rollOffer(s: Save, avoid?: string): void {
   const pool = ARCHETYPES.filter((a) => !a.after || s.titles.includes(a.after));
   let arch = pickOf(s, pool);
   if (avoid && arch.id === avoid) arch = pool[(pool.indexOf(arch) + 1) % pool.length];
-  const up = Math.floor((s.level - 1) * 0.75);
+  const up = s.level - 1;
   const attrs = { ...arch.attrs };
   for (let i = 0; i < up; i++) attrs[(['might', 'finesse', 'grit', 'guile'] as Attr[])[(i + arch.names.length) % 4]]++;
   const look: Look = { skin: Math.floor(roll(s) * 5), hair: 1 + Math.floor(roll(s) * 4), hairColor: Math.floor(roll(s) * 5), beard: Math.floor(roll(s) * 3), shirt: Math.floor(roll(s) * 5), trousers: Math.floor(roll(s) * 4), ...arch.looks };
   s.offer = {
     arch: arch.id, name: pickOf(s, arch.names), epithet: arch.label, ai: arch.ai, weapon: arch.weapon, attrs,
-    hp: arch.hp + (s.level - 1) * 3, acc: arch.acc ?? 0, look, line: pickOf(s, arch.lines), purse: 11 + Math.floor(roll(s) * 3) + (s.level - 1) * 2,
+    hp: arch.hp + (s.level - 1) * 4, acc: arch.acc ?? 0, look, line: pickOf(s, arch.lines), purse: 11 + Math.floor(roll(s) * 3) + (s.level - 1) * 2,
   };
 }
 

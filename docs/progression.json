@@ -1,5 +1,120 @@
 [
  {
+  "key": "anchor",
+  "label": "Anchor and armour (Might and Grit)",
+  "rows": [
+   {
+    "cup": "tar_bucket",
+    "attempt": 1,
+    "level": 3,
+    "gold": 48,
+    "friendlies": 2,
+    "wins": 5,
+    "losses": 0,
+    "weapon": "gull_sticker",
+    "hat": null,
+    "coat": null,
+    "off": null,
+    "attrs": {
+     "might": 3,
+     "finesse": 2,
+     "grit": 3,
+     "guile": 2
+    }
+   },
+   {
+    "cup": "coopers_purse",
+    "attempt": 1,
+    "level": 5,
+    "gold": 117,
+    "friendlies": 4,
+    "wins": 10,
+    "losses": 0,
+    "weapon": "gull_sticker",
+    "hat": "knit_cap",
+    "coat": "patched_vest",
+    "off": null,
+    "attrs": {
+     "might": 4,
+     "finesse": 2,
+     "grit": 4,
+     "guile": 2
+    }
+   },
+   {
+    "cup": "ropewalk",
+    "attempt": 1,
+    "level": 6,
+    "gold": 132,
+    "friendlies": 4,
+    "wins": 13,
+    "losses": 0,
+    "weapon": "kedge_chain",
+    "hat": "knit_cap",
+    "coat": "patched_vest",
+    "off": "buckler",
+    "attrs": {
+     "might": 4,
+     "finesse": 2,
+     "grit": 5,
+     "guile": 2
+    }
+   },
+   {
+    "cup": "mooring_night",
+    "attempt": 1,
+    "level": 8,
+    "gold": 189,
+    "friendlies": 7,
+    "wins": 20,
+    "losses": 0,
+    "weapon": "kedge_chain",
+    "hat": "diving_helmet",
+    "coat": "short_coat",
+    "off": "buckler",
+    "attrs": {
+     "might": 5,
+     "finesse": 3,
+     "grit": 5,
+     "guile": 2
+    }
+   }
+  ],
+  "final": {
+   "level": 8,
+   "gold": 189,
+   "wins": 20,
+   "losses": 0,
+   "owned": [
+    "chipped_hanger",
+    "gull_sticker",
+    "towline",
+    "knit_cap",
+    "patched_vest",
+    "coopers_persuader",
+    "kedge_chain",
+    "buckler",
+    "tansys_hitches",
+    "short_coat",
+    "diving_helmet",
+    "moorings_bower"
+   ],
+   "main": "kedge_chain",
+   "wear": {
+    "hat": "diving_helmet",
+    "coat": "short_coat",
+    "off": "buckler"
+   },
+   "attrs": {
+    "might": 5,
+    "finesse": 3,
+    "grit": 5,
+    "guile": 2
+   }
+  },
+  "errors": []
+ },
+ {
   "key": "twin",
   "label": "Paired blades (Finesse and Guile)",
   "rows": [
@@ -8,9 +123,9 @@
     "attempt": 2,
     "level": 4,
     "gold": 54,
-    "friendlies": 5,
-    "wins": 8,
-    "losses": 2,
+    "friendlies": 4,
+    "wins": 9,
+    "losses": 1,
     "weapon": "fishwifes_pair",
     "hat": "straw_hat",
     "coat": null,
@@ -24,33 +139,33 @@
    },
    {
     "cup": "coopers_purse",
-    "attempt": 2,
-    "level": 6,
-    "gold": 113,
-    "friendlies": 7,
-    "wins": 13,
-    "losses": 3,
+    "attempt": 1,
+    "level": 5,
+    "gold": 87,
+    "friendlies": 4,
+    "wins": 12,
+    "losses": 1,
     "weapon": "fishwifes_pair",
     "hat": "red_bandana",
     "coat": "patched_vest",
     "off": null,
     "attrs": {
      "might": 2,
-     "finesse": 5,
+     "finesse": 4,
      "grit": 3,
      "guile": 3
     }
    },
    {
     "cup": "ropewalk",
-    "attempt": 1,
+    "attempt": 2,
     "level": 7,
-    "gold": 178,
-    "friendlies": 7,
-    "wins": 16,
-    "losses": 3,
+    "gold": 131,
+    "friendlies": 6,
+    "wins": 19,
+    "losses": 2,
     "weapon": "fishwifes_pair",
-    "hat": "red_bandana",
+    "hat": "tricorn",
     "coat": "short_coat",
     "off": null,
     "attrs": {
@@ -62,29 +177,29 @@
    },
    {
     "cup": "mooring_night",
-    "attempt": 3,
-    "level": 10,
-    "gold": 297,
-    "friendlies": 11,
-    "wins": 30,
-    "losses": 5,
-    "weapon": "port_starboard",
+    "attempt": 1,
+    "level": 9,
+    "gold": 320,
+    "friendlies": 6,
+    "wins": 23,
+    "losses": 2,
+    "weapon": "tansys_hitches",
     "hat": "tricorn",
     "coat": "short_coat",
     "off": null,
     "attrs": {
      "might": 2,
-     "finesse": 7,
+     "finesse": 6,
      "grit": 5,
      "guile": 3
     }
    }
   ],
   "final": {
-   "level": 10,
-   "gold": 297,
-   "wins": 30,
-   "losses": 5,
+   "level": 9,
+   "gold": 320,
+   "wins": 23,
+   "losses": 2,
    "owned": [
     "chipped_hanger",
     "fishwifes_pair",
@@ -94,12 +209,11 @@
     "red_bandana",
     "coopers_persuader",
     "short_coat",
-    "tansys_hitches",
     "tricorn",
-    "port_starboard",
+    "tansys_hitches",
     "moorings_bower"
    ],
-   "main": "port_starboard",
+   "main": "tansys_hitches",
    "wear": {
     "hat": "tricorn",
     "coat": "short_coat",
@@ -107,7 +221,7 @@
    },
    "attrs": {
     "might": 2,
-    "finesse": 7,
+    "finesse": 6,
     "grit": 5,
     "guile": 3
    }
