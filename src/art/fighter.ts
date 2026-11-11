@@ -68,6 +68,45 @@ export function weaponSprite(id: string): WSprite {
       p.px(gx - 3, gy + 5, P.brass); p.px(gx - 2, gy + 5, P.brass); p.px(gx + 2, gy + 1, P.brass); p.px(gx + 1, gy - 3, P.brassDark);
       break;
     }
+    case 'gutter': case 'coral': case 'hitches': case 'gutter_off': case 'coral_off': case 'hitches_off': {
+      const kind = id.replace('_off', ''), offb = id.endsWith('_off');
+      const grip = kind === 'coral' ? (offb ? P.green : P.red) : kind === 'hitches' ? P.rope : P.timberDark;
+      p.rect(gx - 2, gy - 1, 5, 2, grip); p.px(gx - 3, gy, kind === 'coral' ? 0xf08a7a : P.brassDark);
+      if (kind === 'hitches') { p.px(gx - 1, gy - 1, P.ropeDark); p.px(gx + 1, gy, P.ropeDark); p.px(gx - 4, gy + 1, P.rope); p.px(gx - 5, gy + 2, P.rope); }
+      p.rect(gx + 3, gy - 2, 1, 5, kind === 'gutter' ? P.steelDark : P.brass);
+      blade(gx + 4, kind === 'gutter' ? 9 : 11, 2, offb ? -2 : 2, P.steel, P.steelLight, P.steel);
+      if (kind === 'coral') p.px(gx + 6, gy + (offb ? 1 : -1), offb ? P.green : P.red);
+      break;
+    }
+    case 'mallet': case 'capstan': case 'persuader': {
+      gx = 8;
+      const L = id === 'capstan' ? 22 : 17;
+      p.rect(gx - 7, gy, L + 6, 2, P.timber); p.line(gx - 7, gy, gx + L - 2, gy, P.timberLight);
+      p.rect(gx - 8, gy, 2, 2, P.ropeDark);
+      if (id === 'mallet') { p.rect(gx + L - 3, gy - 4, 7, 10, P.timberDark); p.rect(gx + L - 3, gy - 4, 7, 2, P.timberLight); p.rect(gx + L - 3, gy + 4, 7, 1, P.timberDeep); p.rect(gx + L - 1, gy - 4, 1, 10, P.rope); }
+      else if (id === 'capstan') { p.rect(gx + L - 9, gy - 1, 12, 4, P.timberLight); p.rect(gx + L + 1, gy - 2, 3, 6, P.steelDark); p.rect(gx + L - 10, gy - 1, 2, 4, P.steelDark); p.px(gx + L + 2, gy - 2, P.steelLight); p.rect(gx + L - 6, gy - 1, 8, 1, P.bone); }
+      else { // a barrel driver: iron-bound block with a hoop notch
+        p.rect(gx + L - 4, gy - 5, 9, 12, P.steelDark); p.rect(gx + L - 4, gy - 5, 9, 2, P.steel); p.rect(gx + L - 2, gy - 5, 2, 12, P.brass); p.rect(gx + L + 3, gy - 5, 1, 12, P.brassDark);
+        p.rect(gx + L + 5, gy - 1, 1, 4, P.ink); p.px(gx + L - 3, gy - 4, P.steelLight); p.rect(gx + L - 4, gy + 6, 9, 1, P.tar);
+      }
+      break;
+    }
+    case 'kedge': case 'due': case 'bower': {
+      // held by the shank: stock at the hand, crown and flukes forward
+      const body = id === 'due' ? P.tar : id === 'bower' ? P.copperDark : P.steelDark, hi = id === 'due' ? P.tarHi : id === 'bower' ? P.copperLight : P.steel;
+      const L = id === 'kedge' ? 10 : 12;
+      p.rect(gx - 1, gy, L + 2, 2, body); p.line(gx, gy, gx + L, gy, hi);
+      p.rect(gx + 1, gy - 4, 2, 10, id === 'bower' ? P.brass : P.timber); // stock
+      p.rect(gx + L, gy - 6, 2, 14, body); p.rect(gx + L, gy - 6, 1, 14, hi);
+      p.poly([[gx + L - 4, gy - 8], [gx + L + 1, gy - 6], [gx + L - 1, gy - 4]], body); p.poly([[gx + L - 4, gy + 9], [gx + L + 1, gy + 7], [gx + L - 1, gy + 5]], body);
+      p.px(gx + L - 4, gy - 8, hi); p.px(gx + L - 4, gy + 9, hi);
+      if (id === 'bower') { p.px(gx + L + 1, gy, P.ghost); p.px(gx + L + 1, gy + 1, P.ghost); }
+      p.rect(gx - 3, gy - 1, 2, 4, P.steel); p.px(gx - 4, gy + 3, P.steelDark); p.px(gx - 5, gy + 4, P.steel); p.px(gx - 5, gy + 6, P.steelDark); p.px(gx - 6, gy + 7, P.steel);
+      break;
+    }
+    case 'pin': p.rect(gx - 2, gy - 1, 4, 2, P.timberLight); p.rect(gx + 2, gy - 2, 7, 4, P.timber); p.rect(gx + 2, gy - 2, 7, 1, P.timberLight); p.rect(gx + 8, gy - 1, 2, 2, P.timberDark); break;
+    case 'buckler': p.ellipse(gx + 3, gy, 6, 7, P.timber); p.ellipse(gx + 3, gy, 4, 5, P.timberLight); p.ellipse(gx + 3, gy, 1, 1, P.brass); p.rect(gx + 3, gy - 7, 1, 15, P.timberDark); p.px(gx, gy - 3, P.brass); p.px(gx + 6, gy + 3, P.brass); break;
+    case 'lantern': p.rect(gx - 1, gy - 1, 3, 2, P.brassDark); p.rect(gx - 2, gy + 1, 6, 7, P.brassDark); p.rect(gx - 1, gy + 2, 4, 5, P.lamp); p.rect(gx, gy + 3, 2, 3, P.bone); p.rect(gx - 2, gy + 8, 6, 1, P.brass); break;
     case 'hook': {
       p.rect(gx - 2, gy - 1, 6, 3, P.timberDark); p.px(gx - 3, gy, P.steelDark);
       p.rect(gx + 4, gy - 2, 2, 5, P.brassDark);
@@ -85,10 +124,11 @@ export function weaponSprite(id: string): WSprite {
   return (wcache[id] = { pix: p, gx, gy });
 }
 
-export function offhandSprite(weapon: string): string | null {
+export function offhandSprite(weapon: string, off?: string | null): string | null {
   const w = WEAPONS[weapon];
-  if (!w || w.family !== 'pistol') return null;
-  return w.sprite === 'lastword' ? 'pistol_pearl' : 'pistol';
+  if (w?.family === 'pistol') return w.sprite === 'lastword' ? 'pistol_pearl' : 'pistol';
+  if (w?.family === 'paired') return w.sprite + '_off';
+  return off ?? null;
 }
 
 // Poses ----------------------------------------------------------------------
@@ -104,15 +144,15 @@ export interface Pose {
 const base: Pose = { lean: 0, bob: 0, crouch: 0, arm: 70, wpn: -55, off: 100, offWpn: 80, stride: 0, back: 0, face: 'calm' };
 const mk = (o: Partial<Pose>): Pose => ({ ...base, ...o });
 
-type Carry = 'blade' | 'pole' | 'hook';
-const carryOf = (weapon: string): Carry => { const f = WEAPONS[weapon]?.family; return f === 'pike' ? 'pole' : f === 'hook' ? 'hook' : 'blade'; };
+type Carry = 'blade' | 'pole' | 'hook' | 'maul' | 'twin';
+const carryOf = (weapon: string): Carry => { const f = WEAPONS[weapon]?.family; return f === 'pike' ? 'pole' : f === 'hook' || f === 'anchor' ? 'hook' : f === 'maul' ? 'maul' : f === 'paired' ? 'twin' : 'blade'; };
 
 export type PoseName = 'idle0' | 'idle1' | 'walk0' | 'walk1' | 'windup' | 'strike' | 'heavyUp' | 'heavyDown' | 'thrustBack' | 'thrustOut' | 'shove' | 'aim' | 'fire' | 'reload' | 'cuffBack' | 'cuffOut'
-  | 'castBack' | 'castOut' | 'hold' | 'haul' | 'brace' | 'hit' | 'dodge' | 'breath0' | 'breath1' | 'down' | 'cheer' | 'show';
+  | 'castBack' | 'castOut' | 'hold' | 'crossed' | 'planted' | 'dazzle' | 'haul' | 'brace' | 'hit' | 'dodge' | 'breath0' | 'breath1' | 'down' | 'cheer' | 'show';
 
 export function poseFor(name: PoseName, weapon: string): Pose {
   const c = carryOf(weapon);
-  const idle: Partial<Pose> = c === 'pole' ? { arm: 50, wpn: -32, off: 35 } : c === 'hook' ? { arm: 75, wpn: 20, off: 105 } : { arm: 62, wpn: -58, off: 105 };
+  const idle: Partial<Pose> = c === 'pole' ? { arm: 50, wpn: -32, off: 35 } : c === 'hook' ? { arm: 75, wpn: 20, off: 105 } : c === 'maul' ? { arm: 35, wpn: -72, off: 20 } : c === 'twin' ? { arm: 55, wpn: -40, off: 70, offWpn: -30 } : { arm: 62, wpn: -58, off: 105 };
   switch (name) {
     case 'idle0': return mk(idle);
     case 'idle1': return mk({ ...idle, bob: 1, arm: (idle.arm ?? 70) + 3 });
@@ -128,8 +168,11 @@ export function poseFor(name: PoseName, weapon: string): Pose {
     case 'aim': return mk({ ...idle, off: 0, offWpn: 0, lean: -2, back: 2, face: 'grit' });
     case 'fire': return mk({ ...idle, off: -14, offWpn: -22, lean: -4, back: 3, face: 'shout' });
     case 'reload': return mk({ ...idle, off: 40, offWpn: -70, arm: 30, wpn: -80, crouch: 2, face: 'grit' });
-    case 'cuffBack': return mk({ ...idle, off: 160, lean: -3, face: 'grit' });
-    case 'cuffOut': return mk({ ...idle, off: -5, lean: 7, stride: 6, face: 'shout' });
+    case 'cuffBack': return mk({ ...idle, off: 160, offWpn: -150, lean: -3, face: 'grit' });
+    case 'cuffOut': return mk({ ...idle, off: -5, offWpn: -20, lean: 7, stride: 6, face: 'shout' });
+    case 'crossed': return mk({ arm: -35, wpn: -115, off: -25, offWpn: -60, crouch: 3, lean: -2, back: 3, face: 'grit' });
+    case 'planted': return mk({ arm: -100, wpn: -112, lean: -4, back: 6, stride: 5, crouch: 3, off: -70, face: 'grit' });
+    case 'dazzle': return mk({ ...idle, off: -20, offWpn: 60, lean: 3, face: 'shout' });
     case 'castBack': return mk({ arm: -150, wpn: -170, lean: -6, back: 4, off: 40, face: 'grit' });
     case 'castOut': return mk({ arm: -15, wpn: -10, lean: 7, stride: 7, off: 140, face: 'shout' });
     case 'hold': return mk({ arm: 10, wpn: 0, lean: -3, back: 4, stride: 2, crouch: 2, off: 20, face: 'grit' });
@@ -145,7 +188,7 @@ export function poseFor(name: PoseName, weapon: string): Pose {
   }
 }
 
-export interface Gear { weapon: string }
+export interface Gear { weapon: string; off?: string | null }
 
 /** Render one frame. Returns a buffer of FW x FH with feet at (OX, OY). */
 export function drawFighter(look: Look, gear: Gear, pose: Pose): Pix {
@@ -159,7 +202,8 @@ export function drawFighter(look: Look, gear: Gear, pose: Pose): Pix {
   const hipY = OY - 14 + pose.crouch, shY = hipY - 14 + Math.round(pose.crouch / 2), shX = OX + pose.lean, hipX = OX + Math.round(pose.lean * 0.3);
   const hw = broad ? 9 : 7, ww = broad ? 8 : 5;
   const rad = (d: number) => (d * Math.PI) / 180;
-  const sleeve = look.coat === 'short' ? coatC : shirt, sleeveS = look.coat === 'short' ? coatS : shirtS;
+  const sleeved = look.coat === 'short' || look.coat === 'long';
+  const sleeve = sleeved ? coatC : shirt, sleeveS = sleeved ? coatS : shirtS;
   const w = WEAPONS[gear.weapon];
 
   const arm = (p: Pix, sx: number, sy: number, ang: number, len: number) => {
@@ -174,7 +218,7 @@ export function drawFighter(look: Look, gear: Gear, pose: Pose): Pix {
   const offSh = [shX - hw + 3, shY + 3];
   out.layer((p) => {
     const [hx, hy] = arm(p, offSh[0], offSh[1], pose.off, 11);
-    const os = offhandSprite(gear.weapon);
+    const os = offhandSprite(gear.weapon, gear.off);
     if (os) { const s = weaponSprite(os); p.blitRot(s.pix, s.gx, s.gy, hx, hy, pose.offWpn); }
     hand(p, hx, hy);
   });
@@ -199,6 +243,12 @@ export function drawFighter(look: Look, gear: Gear, pose: Pose): Pix {
       p.poly([[shX - hw, shY], [shX - 1, shY], [hipX - 2, hipY - 2], [hipX - ww, hipY - 2]], coatC);
       p.poly([[shX + hw - 3, shY], [shX + hw, shY], [hipX + ww + 1, hipY - 5], [hipX + ww, hipY - 2], [hipX + ww - 3, hipY - 2]], coatC);
       p.line(shX - hw, shY + 2, hipX - ww, hipY - 3, coatS);
+    }
+    if (look.coat === 'long') {
+      p.poly([[shX - hw, shY], [shX + hw, shY], [hipX + ww + 2, hipY - 5], [hipX + ww + 2, hipY + 8], [hipX + 1, hipY + 8], [hipX - 1, hipY + 2], [hipX - ww - 2, hipY + 9], [shX - hw, shY + 6]], coatC);
+      p.poly([[shX - hw, shY + 2], [shX - hw + 3, shY + 2], [hipX - ww + 1, hipY + 9], [hipX - ww - 2, hipY + 9]], coatS);
+      p.line(shX + 2, shY + 1, hipX + 2, hipY + 7, coatS); p.px(shX + 4, shY + 4, P.brass); p.px(hipX + 4, hipY - 6, P.brass); p.px(hipX + 4, hipY - 1, P.brass);
+      p.rect(shX - hw, shY, hw * 2 + 1, 2, shade(coatC, 1.3)); p.rect(hipX - ww, hipY - 2, ww * 2 + 2, 1, P.ropeDark);
     }
     if (look.coat === 'short') {
       p.poly([[shX - hw, shY], [shX + hw, shY], [hipX + ww + 2, hipY - 5], [hipX + ww + 1, hipY - 3], [hipX - ww - 1, hipY - 3], [shX - hw, shY + 6]], coatC);

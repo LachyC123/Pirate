@@ -116,3 +116,8 @@ body.port .fan { top:calc(var(--sh) + 122px); }
 body.port .place { top:calc(var(--sy) + 58px); }
 .slotname { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 .record { margin-top:10px; border-top:2px solid var(--brass2); padding-top:8px; }
+
+/* pass 2 */
+body.land .caption.cue { white-space:normal; left:calc(var(--sx) + var(--sw) * .2); right:calc(100% - var(--sx) - var(--sw) * .86); font-size:13px; }
+.bubble { top:calc(var(--sy) + 42px + var(--sat)); }
+body.port .bubble { top:calc(var(--sy) + 50px); }

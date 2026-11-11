@@ -1,7 +1,8 @@
 // Persistent tabs and sheets shared by every view. Closing returns to the same view.
-import { ATTRS, ATTR_INFO, Attr, Attrs, FAMILY_INFO, LOST, MOVES, TOURS, WEAPONS, xpForLevel } from '../core/data';
+import { ATTRS, ATTR_INFO, Attr, Attrs, FAMILY_INFO, LOST, MOVES, OFF_BUSY, Slot, TOURS, WEAPONS, WEARS, xpForLevel } from '../core/data';
 import { sheetStats } from '../core/battle';
-import { equip, lockedKit, playerMaxHp, spendPoint } from '../core/game';
+import { effAttrs, equip, lockedKit, offMove, playerMaxHp, playerMaxSt, spendPoint, unequip } from '../core/game';
+import { wearEffects } from '../scenes/shop';
 import { S, applySettings, btn, closeModal, commit, go, h, ico, modal, resetSave, toast } from '../app';
 import { sfx } from '../sfx';
 
@@ -25,16 +26,16 @@ export function moveRow(attrs: Attrs, weapon: string, id: string, tag = ''): HTM
 
 /** Concrete before/after lines for spending a point. */
 export function attrPreview(a: Attr): string[] {
-  const after = { ...S.attrs, [a]: S.attrs[a] + 1 };
+  const now = effAttrs(S), after = { ...now, [a]: now[a] + 1 };
   const out: string[] = [];
   if (a === 'grit') {
-    out.push(`Health ${playerMaxHp(S)} → ${playerMaxHp(S) + 4}`, `Stamina ${8 + S.attrs.grit} → ${9 + S.attrs.grit}`);
+    out.push(`Health ${playerMaxHp(S)} → ${playerMaxHp(S) + 4}`, `Stamina ${playerMaxSt(S)} → ${playerMaxSt(S) + 1}`);
     return out;
   }
-  for (const id of [...WEAPONS[S.main].moves, 'cuff']) {
+  for (const id of [...WEAPONS[S.main].moves, offMove(S), ...(WEAPONS[S.main].family === 'paired' ? ['follow'] : [])]) {
     const m = MOVES[id];
     if (!m.dmg) continue;
-    const x = sheetStats(S.attrs, S.main, id), y = sheetStats(after, S.main, id);
+    const x = sheetStats(now, S.main, id), y = sheetStats(after, S.main, id);
     if (x.lo === y.lo && x.acc === y.acc) continue;
     const dmg = x.lo !== y.lo ? `${x.lo}–${x.hi} → ${y.lo}–${y.hi}` : '';
     const acc = x.acc !== y.acc ? `${x.acc}% → ${y.acc}%` : '';
@@ -58,10 +59,18 @@ export function openSheet(): void {
       h('p.small', null, `Level ${S.level} · ${S.xp}/${xpForLevel(S.level + 1)} XP · ${S.wins} won, ${S.losses} lost · seeking ${LOST[S.lost].thing}`),
       S.points > 0 ? attrSpender(render) : h('div.attrs', null, ...ATTRS.map((a) => h('div.attr', null, h('b', null, `${ATTR_INFO[a].name} ${S.attrs[a]}`), h('span.small', null, ATTR_INFO[a].blurb)))),
       h('h3', null, 'Kit'), locked ? h('p.small.warn', null, 'Loadout is locked until this tournament or fight ends.') : null,
-      ...S.owned.map((id) => {
+      ...S.owned.filter((id) => WEAPONS[id]).map((id) => {
         const w = WEAPONS[id];
-        return h('div.kit' + (S.main === id ? '.on' : ''), null, h('div', null, h('b', null, w.name), h('span.small', null, `${FAMILY_INFO[w.family].name}. ${FAMILY_INFO[w.family].trick}`), ...w.moves.map((m) => h('span.small', null, `${MOVES[m].name}: ${moveNumbers(S.attrs, id, m)}`))),
+        return h('div.kit' + (S.main === id ? '.on' : ''), null, h('div', null, h('b', null, w.name), h('span.small', null, `${FAMILY_INFO[w.family].name}. ${FAMILY_INFO[w.family].trick}`), ...w.moves.map((m) => h('span.small', null, `${MOVES[m].name}: ${moveNumbers(effAttrs(S), id, m)}`))),
           S.main === id ? h('span.tag', null, 'In hand') : btn('Equip', () => { if (equip(S, id)) { sfx('steel'); commit(); go(); openSheet(); } }, 'small', { disabled: locked, 'data-equip': id }));
+      }),
+      h('h3', null, 'Worn'),
+      h('p.small', null, `Health ${playerMaxHp(S)} · Stamina ${playerMaxSt(S)} · Off-hand move: ${MOVES[offMove(S)].name}${OFF_BUSY.includes(WEAPONS[S.main].family) && S.wear.off ? ' (both hands are full)' : ''}`),
+      ...(['hat', 'coat', 'off'] as Slot[]).flatMap((slot) => {
+        const mine = S.owned.filter((id) => WEARS[id]?.slot === slot);
+        if (!mine.length) return [h('div.small', null, `${{ hat: 'Hat', coat: 'Coat', off: 'Off hand' }[slot]}: nothing yet. Ezra Thimble's armoury sells them.`)];
+        return mine.map((id) => h('div.kit' + (S.wear[slot] === id ? '.on' : ''), null, h('div', null, h('b', null, WEARS[id].name), h('span.small', null, wearEffects(WEARS[id]).join(', '))),
+          S.wear[slot] === id ? btn('Take off', () => { if (unequip(S, slot)) { commit(); go(); openSheet(); } }, 'small', { disabled: locked }) : btn('Wear', () => { if (equip(S, id)) { sfx('cloth'); commit(); go(); openSheet(); } }, 'small', { disabled: locked, 'data-equip': id })));
       }),
       h('h3', null, 'Trophies'),
       S.titles.length ? h('div', null, ...S.titles.map((t) => h('div.small', null, `Pennant: ${TOURS[t].name}`)), h('div.small', null, `Cursed coins in the Purse: ${S.coins} of 20`)) : h('p.small', null, 'No pennants yet. The Tar Bucket Cup is open at the arena.'),

@@ -1,6 +1,6 @@
 // Backdrops, the merchant and UI icons. All project-owned procedural pixel art.
 import { P, Pix, hash, mix, shade, text } from './pix';
-import { weaponSprite } from './fighter';
+import { OX, OY, drawFighter, poseFor, weaponSprite } from './fighter';
 
 export const SH = 180; // logical stage height everywhere
 
@@ -75,7 +75,7 @@ function person(p: Pix, x: number, y: number, seed: number, scale = 1): void {
 // HARBOUR --------------------------------------------------------------------
 export interface HarbourSpots { smith: [number, number]; armoury: [number, number]; arena: [number, number]; tattoo: [number, number]; surgeon: [number, number]; purse: [number, number]; player: [number, number] }
 
-export function harbour(W: number, titles: string[], pennants: number[], coins: number): { pix: Pix; spots: HarbourSpots } {
+export function harbour(W: number, titles: string[], pennants: number[], coins: number, trophies: string[] = []): { pix: Pix; spots: HarbourSpots } {
   const p = new Pix(W, SH);
   const cx = Math.round(W / 2);
   sky(p, 0x23264a, 0x74456b, 0xe5915c, 96);
@@ -148,14 +148,26 @@ export function harbour(W: number, titles: string[], pennants: number[], coins: 
     for (let i = 0; i < 5; i++) { const px = x0 + 10 + Math.round(hash(i, 60) * (bw - 24)), py = 48 + Math.round(hash(i, 61) * 14); q.rect(px, py, 7, 5, i % 2 ? P.sailShade : P.boneShade); q.px(px, py, P.ink); q.px(px + 6, py + 4, P.ink); q.px(px + 6, py, P.ink); q.px(px, py + 4, P.ink); }
     q.line(x0 - 8, 76, x0 - 8, 150, P.timberDeep, 2);
     const dx = x0 + Math.round(bw * 0.5);
-    q.rect(dx - 11, 104, 23, 46, P.timberDeep); q.rect(dx - 8, 108, 17, 42, P.tar); q.rect(dx - 8, 108, 17, 3, P.tarLight);
-    q.rect(dx - 13, 118, 27, 4, P.timber); q.rect(dx - 13, 132, 27, 4, P.timber); // boarded up for now
+    q.rect(dx - 11, 104, 23, 46, P.timberDeep); q.rect(dx - 8, 108, 17, 42, 0xe5915c); q.rect(dx - 8, 126, 17, 24, P.lamp);
+    q.rect(dx - 5, 114, 5, 7, P.red); q.rect(dx - 6, 121, 7, 12, P.blue); q.rect(dx + 3, 116, 4, 3, P.tar); q.rect(dx + 2, 119, 6, 1, P.tar); q.rect(dx - 8, 140, 17, 10, P.timberDark); // hats and coats in the doorway
     q.rect(dx - 15, 84, 31, 15, P.timberDeep); q.rect(dx - 14, 85, 29, 13, P.bone);
     q.poly([[dx - 5, 87], [dx + 5, 87], [dx + 5, 92], [dx, 96], [dx - 5, 92]], P.brass); q.line(dx, 88, dx, 94, P.brassDark);
   });
   // dockside dressing
   p.layer((q) => { q.ellipse(bw + 12, 144, 6, 7, P.timberLight); q.rect(bw + 6, 141, 13, 1, P.tar); q.rect(bw + 6, 147, 13, 1, P.tar); q.rect(bw + 9, 137, 7, 2, P.timberDark); });
   lantern(p, bw - 2, 100); lantern(p, W - bw - 8, 96);
+  // champion trophies on a shelf by the weaponsmith
+  if (trophies.length) p.layer((q) => {
+    const x0 = bw + 22, y0 = 126;
+    q.rect(x0 - 3, y0, trophies.length * 11 + 4, 2, P.timberDark); q.rect(x0 - 2, y0 + 2, 2, 6, P.timberDeep); q.rect(x0 + trophies.length * 11 - 3, y0 + 2, 2, 6, P.timberDeep);
+    trophies.forEach((t, i) => {
+      const x = x0 + i * 11;
+      if (t === 'bucket') { q.poly([[x, y0 - 7], [x + 7, y0 - 7], [x + 6, y0 - 1], [x + 1, y0 - 1]], P.tar); q.rect(x, y0 - 7, 8, 1, P.tarHi); q.rect(x + 2, y0 - 9, 4, 1, P.rope); }
+      else if (t === 'hoop') { q.ellipse(x + 3, y0 - 5, 4, 4, P.brass); q.ellipse(x + 3, y0 - 5, 2, 2, P.timberDark); q.px(x + 1, y0 - 8, P.brassLight); }
+      else if (t === 'coil') { q.ellipse(x + 3, y0 - 3, 4, 2, P.rope); q.ellipse(x + 3, y0 - 5, 3, 2, P.ropeDark); q.ellipse(x + 3, y0 - 7, 2, 1, P.rope); }
+      else { q.rect(x + 3, y0 - 10, 2, 9, P.copper); q.rect(x + 1, y0 - 9, 6, 1, P.brass); q.rect(x, y0 - 3, 8, 2, P.copperDark); q.px(x, y0 - 4, P.copperLight); q.px(x + 7, y0 - 4, P.copperLight); q.px(x + 3, y0 - 11, P.ghost); }
+    });
+  });
   // onlookers gather as titles are won
   for (let i = 0; i < Math.min(W < 300 ? 2 : 8, titles.length * 3); i++) p.layer((q) => person(q, cx + (i % 2 ? 1 : -1) * (24 + i * 6), 139 + (i % 3) * 2, i + 5));
   // the Dead Man's Purse hangs on a post
@@ -170,17 +182,18 @@ export function harbour(W: number, titles: string[], pennants: number[], coins: 
 
 // SHOP INTERIOR ---------------------------------------------------------------
 export interface RackSlot { x: number; y: number; w: number; h: number }
-export function shopInterior(W: number): { pix: Pix; rack: RackSlot[]; merchant: [number, number]; preview: [number, number] } {
+export function shopInterior(W: number, kind: 'smith' | 'armoury' = 'smith'): { pix: Pix; rack: RackSlot[]; merchant: [number, number]; preview: [number, number] } {
   const p = new Pix(W, SH);
   const wide = W > 300;
-  planks(p, 0, 0, W, 138, 0x5a3a2c, 31, 9, true);
+  planks(p, 0, 0, W, 138, kind === 'smith' ? 0x5a3a2c : 0x4a4a5c, 31, 9, true);
   for (let x = 0; x < W; x++) for (let y = 0; y < 138; y++) if (y < 10 || hash(x, y, 77) > 0.985) p.px(x, y, shade(p.get(x, y), 0.75));
   planks(p, 0, 138, W, SH - 138, P.timber, 33, 7);
   p.rect(0, 136, W, 3, P.timberDeep);
   // window with harbour light behind the merchant
   p.layer((q) => { q.rect(8, 16, 34, 30, P.timberDeep); q.rect(10, 18, 30, 26, 0x74456b); q.rect(10, 32, 30, 12, 0xe5915c); q.rect(10, 40, 30, 4, P.seaLight); q.line(25, 18, 25, 43, P.timberDeep); q.line(10, 31, 39, 31, P.timberDeep); q.line(14, 40, 14, 24, 0x3a2d4d); q.line(11, 28, 18, 27, 0x3a2d4d); });
   // hanging stock in the gloom
-  for (let i = 0; i < (wide ? 5 : 2); i++) { const x = 52 + i * 17; p.line(x, 0, x, 10 + (i % 2) * 5, P.rope); p.layer((q) => q.blitRot(weaponSprite(['hanger', 'sabre', 'knife', 'hanger', 'sabre'][i]).pix, 4, 10, x, 12 + (i % 2) * 5, 90)); }
+  if (kind === 'armoury') { for (let i = 0; i < (wide ? 6 : 3); i++) { const x = 50 + i * 15, c = [P.red, P.sail, P.blue, P.green, P.sailShade, P.purple][i]; p.layer((q) => { q.poly([[x - 5, 0], [x + 5, 0], [x + 6, 16 + (i % 3) * 3], [x - 6, 18 + (i % 2) * 4]], c); q.line(x - 2, 2, x - 3, 14, shade(c, 0.7)); }); } }
+  else for (let i = 0; i < (wide ? 5 : 2); i++) { const x = 52 + i * 17; p.line(x, 0, x, 10 + (i % 2) * 5, P.rope); p.layer((q) => q.blitRot(weaponSprite(['hanger', 'sabre', 'knife', 'hanger', 'sabre'][i]).pix, 4, 10, x, 12 + (i % 2) * 5, 90)); }
   // the rack: a sheet of sailcloth pinned to the wall
   const rx = wide ? Math.round(W * 0.47) : 100, rw = W - rx - 6, ry = 8, rh = wide ? 100 : 104;
   p.layer((q) => {
@@ -262,6 +275,59 @@ export function peg(f: number, talk = false): Pix {
   const big = new Pix(s.pix.w * 2, s.pix.h * 2); big.blit(s.pix, 0, 0, false, 2);
   p.blitRot(big, 24, 21, fx + 1, fy, wob);
   return p;
+}
+
+/** Ezra Thimble, sailmaker. Frame f draws a long stitch upward through a hat he is mending. */
+export function thimble(f: number, talk = false): Pix {
+  const p = new Pix(PEG_W, PEG_H);
+  const skin = 0xb07a4f, skinS = 0x8a5a38, skinD = 0x5c3a24, grey = 0xc9ced2;
+  const cx = 42;
+  const blink = f % 9 === 5;
+  const pull = [0, 3, 7, 11, 13, 11, 6, 2, 0][f % 9];
+  p.layer((q) => {
+    q.poly([[cx - 40, 110], [cx - 34, 74], [cx - 14, 62], [cx + 16, 62], [cx + 36, 74], [cx + 42, 110]], P.sailShade);
+    q.poly([[cx - 36, 110], [cx - 31, 78], [cx - 14, 66], [cx - 12, 110]], P.sailDark);
+    q.poly([[cx - 18, 110], [cx - 16, 76], [cx + 18, 76], [cx + 22, 110]], P.sail);
+    for (let i = 0; i < 4; i++) q.rect(cx - 10 + i * 7, 84, 2, 2, P.ropeDark); // row of stitches
+    q.rect(cx + 6, 94, 9, 7, P.sailShade); q.px(cx + 6, 94, P.ink); q.px(cx + 14, 100, P.ink);
+    q.line(cx - 16, 66, cx - 6, 80, P.brass, 2); q.line(cx + 16, 66, cx + 8, 80, P.brass, 2); q.rect(cx - 4, 80, 10, 2, P.brassDark); // tape measure
+  });
+  p.layer((q) => {
+    q.rect(cx - 9, 50, 20, 14, skinS);
+    q.ellipse(cx + 1, 30, 22, 24, skin);
+    q.poly([[cx - 20, 34], [cx + 22, 34], [cx + 18, 54], [cx + 4, 60], [cx - 12, 56]], skin);
+    q.poly([[cx - 21, 28], [cx - 15, 28], [cx - 8, 56], [cx - 14, 52]], skinS);
+    q.ellipse(cx - 19, 34, 3, 6, skinS); q.px(cx - 19, 34, skinD);
+    q.poly([[cx + 12, 30], [cx + 24, 40], [cx + 22, 45], [cx + 11, 44]], skin); q.line(cx + 12, 44, cx + 21, 45, skinD);
+    // bald crown, grey fringe and a great moustache
+    q.px(cx - 4, 8, 0xd9a273); q.px(cx - 2, 9, 0xd9a273); q.px(cx - 7, 10, 0xd9a273);
+    q.poly([[cx - 22, 24], [cx - 16, 20], [cx - 14, 40], [cx - 20, 44], [cx - 23, 34]], grey);
+    q.poly([[cx + 2, 46], [cx + 22, 46], [cx + 26, 54], [cx + 16, 51], [cx + 8, 52], [cx - 2, 56]], grey);
+  });
+  const ey = 30;
+  // round brass spectacles
+  for (const ex of [cx - 9, cx + 7]) { p.ellipse(ex, ey, 6, 6, P.brassDark); p.ellipse(ex, ey, 5, 5, 0xdfe9ee); if (blink) p.line(ex - 3, ey, ex + 3, ey, P.ink); else { p.rect(ex - 1 + (f % 4 === 1 ? 1 : 0), ey - 1 + (pull > 8 ? -1 : 0), 3, 3, P.ink); p.px(ex - 3, ey - 3, P.white); } }
+  p.line(cx - 3, ey, cx + 1, ey, P.brassDark); p.line(cx - 15, ey - 1, cx - 20, ey - 3, P.brassDark);
+  p.line(cx - 14, ey - 9, cx - 5, ey - 10, grey, 2); p.line(cx + 3, ey - 10, cx + 12, ey - 8, grey, 2);
+  if (talk) { p.rect(cx + 5, 54, 9, 4, P.redDark); p.rect(cx + 6, 54, 6, 1, P.white); } else p.line(cx + 6, 55, cx + 13, 55, skinD);
+  // work in the left hand, needle hand drawing the thread up and down
+  const nx = 80, ny = 58 - pull;
+  p.layer((q) => { q.poly([[cx + 12, 96], [cx + 32, 86], [cx + 34, 96], [cx + 14, 106]], P.sailDark); q.poly([[cx + 16, 86], [cx + 34, 80], [cx + 38, 90], [cx + 18, 98]], P.red); q.rect(cx + 20, 84, 14, 2, P.redDark); q.rect(cx + 28, 88, 8, 7, skin); q.rect(cx + 28, 93, 8, 2, skinS); });
+  p.line(cx + 26, 84, nx, ny + 4, P.bone);
+  p.layer((q) => { q.poly([[cx + 30, 78], [cx + 40, 96], [nx + 6, ny + 16], [nx - 2, ny + 10]], P.sailShade); q.rect(nx - 4, ny + 2, 10, 9, skin); q.rect(nx - 4, ny + 8, 10, 3, skinS); q.rect(nx - 2, ny + 5, 6, 3, P.timberDark); });
+  p.line(nx, ny + 3, nx + 3, ny - 6, P.steelLight); p.px(nx + 3, ny - 7, P.white);
+  return p;
+}
+
+/** Rack picture of a wearable: a dummy head or torso wearing it, or the off-hand piece itself. */
+export function wearIcon(slot: string, draw: string, color: number | undefined, sc: number): Pix {
+  if (slot === 'off') { const ws = weaponSprite(draw); const o = new Pix(ws.pix.w * 3, ws.pix.h * 3); o.blit(ws.pix, 0, 0, false, 3); const c = new Pix(40, 40); c.blit(o, 8 - ws.gx * 3 + 6, 20 - ws.gy * 3); return c; }
+  const dummy = { skin: 2, hair: 0, hairColor: 0, beard: 0, shirt: 0, trousers: 0, hat: slot === 'hat' ? draw : undefined, coat: slot === 'coat' ? draw : undefined, coatColor: color };
+  const f = drawFighter(dummy, { weapon: '' }, poseFor('idle0', ''));
+  const x0 = OX - 12, y0 = slot === 'hat' ? OY - 55 : OY - 31, w = 27, hh = slot === 'hat' ? 25 : 21;
+  const o = new Pix(w * sc, hh * sc);
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) { const c = f.get(x0 + x, y0 + y); if (c >= 0) o.rect(x * sc, y * sc, sc, sc, c); }
+  return o;
 }
 
 // ARENA: TARWATER DOCKS --------------------------------------------------------
@@ -370,6 +436,16 @@ export function icon(name: string): Pix {
       if (name === 'rake') { p.px(3, 3, P.red); p.px(5, 5, P.red); p.px(2, 6, P.red); }
       break;
     }
+    case 'cross': p.line(2, 13, 12, 3, P.steel, 2); p.line(13, 13, 3, 3, P.steelLight, 2); p.px(7, 8, P.lamp); p.px(8, 7, P.lamp); p.rect(1, 12, 3, 3, P.rope); p.rect(12, 12, 3, 3, P.rope); break;
+    case 'flurry': p.line(1, 11, 8, 4, P.steel, 2); p.line(6, 13, 13, 6, P.steelLight, 2); p.poly([[11, 1], [15, 3], [11, 5]], P.bone); p.px(2, 4, P.red); p.px(4, 2, P.red); break;
+    case 'thump': p.rect(2, 8, 9, 2, P.timber); p.rect(9, 4, 5, 9, P.timberDark); p.rect(9, 4, 5, 2, P.timberLight); break;
+    case 'breaker': p.rect(1, 9, 8, 2, P.timber); p.rect(7, 5, 5, 9, P.steelDark); p.rect(7, 5, 5, 2, P.steel); p.poly([[11, 1], [15, 1], [15, 6], [13, 9], [11, 6]], P.brass); p.line(13, 1, 12, 5, P.ink); p.line(12, 5, 14, 8, P.ink); break;
+    case 'plant': p.rect(2, 10, 5, 4, P.tar); p.rect(9, 10, 5, 4, P.tar); p.rect(3, 4, 3, 6, P.timber); p.rect(10, 4, 3, 6, P.timber); p.rect(1, 14, 14, 1, P.brass); p.px(8, 2, P.red); p.px(8, 6, P.red); break;
+    case 'lash': for (let i = 0; i < 7; i++) p.rect(1 + i * 2, 9 + Math.round(Math.sin(i * 1.1) * 3), 2, 2, i % 2 ? P.steel : P.steelDark); p.px(15, 6, P.bone); break;
+    case 'heave': p.rect(7, 2, 2, 10, P.steelDark); p.rect(4, 3, 8, 2, P.timber); p.rect(3, 11, 10, 2, P.steelDark); p.px(2, 10, P.steel); p.px(13, 10, P.steel); p.px(2, 9, P.steel); p.px(13, 9, P.steel); p.poly([[11, 13], [15, 14], [12, 15]], P.bone); break;
+    case 'bash': p.ellipse(7, 8, 5, 5, P.timber); p.ellipse(7, 8, 3, 3, P.timberLight); p.rect(7, 7, 2, 2, P.brass); p.px(14, 5, P.bone); p.px(15, 8, P.bone); p.px(14, 11, P.bone); break;
+    case 'pin': p.rect(2, 10, 4, 3, P.timberLight); p.poly([[5, 9], [12, 3], [14, 5], [7, 12]], P.timber); p.px(14, 2, P.bone); p.px(15, 6, P.bone); break;
+    case 'dazzle': p.rect(5, 6, 6, 8, P.brassDark); p.rect(6, 7, 4, 6, P.lamp); p.rect(6, 4, 4, 2, P.brassDark); for (const [x, y] of [[1, 4], [2, 9], [14, 4], [13, 9], [8, 1], [3, 1], [12, 1]]) p.px(x, y, P.lamp); break;
     case 'back': p.poly([[7, 3], [2, 8], [7, 13]], P.bone); p.rect(7, 7, 7, 3, P.bone); break;
     case 'inspect': p.ellipse(7, 7, 4, 4, P.bone); p.ellipse(7, 7, 2, 2, P.seaLight); p.line(10, 10, 14, 14, P.brass, 2); break;
     case 'hp': p.ellipse(5, 6, 3, 3, P.red); p.ellipse(10, 6, 3, 3, P.red); p.poly([[2, 7], [13, 7], [8, 13], [7, 13]], P.red); p.px(4, 5, P.bone); break;

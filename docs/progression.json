@@ -1,0 +1,117 @@
+[
+ {
+  "key": "twin",
+  "label": "Paired blades (Finesse and Guile)",
+  "rows": [
+   {
+    "cup": "tar_bucket",
+    "attempt": 2,
+    "level": 4,
+    "gold": 54,
+    "friendlies": 5,
+    "wins": 8,
+    "losses": 2,
+    "weapon": "fishwifes_pair",
+    "hat": "straw_hat",
+    "coat": null,
+    "off": null,
+    "attrs": {
+     "might": 2,
+     "finesse": 4,
+     "grit": 3,
+     "guile": 2
+    }
+   },
+   {
+    "cup": "coopers_purse",
+    "attempt": 2,
+    "level": 6,
+    "gold": 113,
+    "friendlies": 7,
+    "wins": 13,
+    "losses": 3,
+    "weapon": "fishwifes_pair",
+    "hat": "red_bandana",
+    "coat": "patched_vest",
+    "off": null,
+    "attrs": {
+     "might": 2,
+     "finesse": 5,
+     "grit": 3,
+     "guile": 3
+    }
+   },
+   {
+    "cup": "ropewalk",
+    "attempt": 1,
+    "level": 7,
+    "gold": 178,
+    "friendlies": 7,
+    "wins": 16,
+    "losses": 3,
+    "weapon": "fishwifes_pair",
+    "hat": "red_bandana",
+    "coat": "short_coat",
+    "off": null,
+    "attrs": {
+     "might": 2,
+     "finesse": 5,
+     "grit": 4,
+     "guile": 3
+    }
+   },
+   {
+    "cup": "mooring_night",
+    "attempt": 3,
+    "level": 10,
+    "gold": 297,
+    "friendlies": 11,
+    "wins": 30,
+    "losses": 5,
+    "weapon": "port_starboard",
+    "hat": "tricorn",
+    "coat": "short_coat",
+    "off": null,
+    "attrs": {
+     "might": 2,
+     "finesse": 7,
+     "grit": 5,
+     "guile": 3
+    }
+   }
+  ],
+  "final": {
+   "level": 10,
+   "gold": 297,
+   "wins": 30,
+   "losses": 5,
+   "owned": [
+    "chipped_hanger",
+    "fishwifes_pair",
+    "straw_hat",
+    "towline",
+    "patched_vest",
+    "red_bandana",
+    "coopers_persuader",
+    "short_coat",
+    "tansys_hitches",
+    "tricorn",
+    "port_starboard",
+    "moorings_bower"
+   ],
+   "main": "port_starboard",
+   "wear": {
+    "hat": "tricorn",
+    "coat": "short_coat",
+    "off": null
+   },
+   "attrs": {
+    "might": 2,
+    "finesse": 7,
+    "grit": 5,
+    "guile": 3
+   }
+  },
+  "errors": []
+ }
+]

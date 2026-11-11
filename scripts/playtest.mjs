@@ -32,29 +32,11 @@ const settle = async () => {
 };
 const reload = async () => { await page.reload(); await page.waitForTimeout(700); };
 
-/** choose a card for the current turn */
-function decide(s, style) {
-  const b = s.battle, me = b.f[0], foe = b.f[1], d = Math.abs(me.pos - foe.pos);
-  const wall = me.pos === 0;
-  if (style === 'lose') return 'breath';
-  if (foe.pending) return 'brace';
-  if (me.pending) return 'move:haul';
-  if (me.riposte && d === 1 && me.st >= 1) return 'move:riposte';
-  const w = me.weapon;
-  if (w === 'gull_sticker') {
-    if (d === 2) return me.st >= 6 ? 'move:lunge' : me.st >= 2 ? 'move:thrust' : 'breath';
-    if (d === 1) return me.st >= 3 ? 'move:shove' : me.st >= 1 ? 'move:cuff' : 'breath';
-    return 'advance';
-  }
-  if (w === 'towline') {
-    if (d >= 2 && d <= 4) return me.st >= 4 ? 'move:cast' : 'breath';
-    if (d === 1) return me.st >= 2 ? 'move:rake' : 'breath';
-    return 'advance';
-  }
-  // hanger: close, cut, brace when winded so the block sets up a riposte
-  if (d > 1) return 'advance';
-  if (me.st >= 2) return 'move:slash';
-  return b.round % 2 ? 'brace' : 'breath';
+/** choose a card for the current turn: the game's own steady advisor, or deliberately useless play */
+async function decide(s, style) {
+  if (style === 'lose') return s.battle.chain === 0 ? 'pass' : 'breath';
+  const a = await page.evaluate(() => window.__dmp.advise());
+  return a.t === 'move' ? 'move:' + a.id : a.t;
 }
 
 async function act(key) {
@@ -69,7 +51,7 @@ async function fight(style, hooks = {}) {
   while (!(await has('.resultpanel'))) {
     const s = await S();
     if (hooks.each) await hooks.each(s, turns);
-    await act(decide(s, style));
+    await act(await decide(s, style));
     await settle();
     if (++turns > 120) throw new Error('fight did not end');
   }
@@ -135,7 +117,7 @@ while ((await S()).gold < 30) {
     ok(await has('.fan:not(.empty) [data-act="attack"]'), 'reload mid-duel: still my turn, actions available');
     // commit a turn and reload before its animation has finished
     await setReduced(false);
-    const k = decide(after, 'good');
+    const k = await decide(after, 'good');
     await act(k);
     const committed = await S();
     await page.waitForTimeout(150);
@@ -257,7 +239,7 @@ await settle();
 await shot('14-coopers-purse-first-bout');
 
 // 9. rotate mid-fight, then portrait checks ---------------------------------------------------------------------
-await act(decide(await S(), 'good'));
+await act(await decide(await S(), 'good'));
 await settle();
 const mid = JSON.stringify((await S()).battle);
 await page.setViewportSize({ width: 390, height: 664 });
@@ -278,19 +260,18 @@ await tap('[data-act="back"]');
 await page.setViewportSize({ width: 844, height: 390 });
 await page.waitForTimeout(700);
 ok(JSON.stringify((await S()).battle) === mid, 'rotating back to landscape keeps the fight');
+page.on('dialog', (d) => d.accept());
 await fight('good');
 await spendPoints();
 s = await S();
-if (s.result.win) ok(s.result.unfinished === true && !s.titles.includes('coopers_purse'), "Cooper's Purse honestly stops after its first bout: no title awarded");
-else ok(true, "lost to Barrel Bess (allowed): Cooper's Purse restarts at its first bout");
+if (s.result.win) { ok(s.result.nextFoe === 'Splint Jenny' && s.tour.round === 1, "Cooper's Purse continues to its second bout"); await tap('text=Withdraw from the cup'); }
+else { ok(true, "lost to Barrel Bess (allowed): Cooper's Purse restarts at its first bout"); await tap('[data-leave]'); }
 await page.setViewportSize({ width: 390, height: 664 });
-await page.waitForTimeout(500);
-if (await has('[data-leave]')) await tap('[data-leave]');
 await page.waitForTimeout(400);
 await shot('17-harbour-portrait');
-await tap('[data-spot="smith"]');
-await tap('[data-item="widows_knife"]');
-await shot('18-shop-portrait');
+await tap('[data-spot="armoury"]');
+await tap('[data-item="patched_vest"]');
+await shot('18-armoury-portrait');
 ok(errors.length === 0, `no page errors (${errors.slice(0, 3).join(' | ') || 'clean'})`);
 s = await S();
 console.log(`\nFinal: level ${s.level}, ${s.gold} gold, ${s.wins} wins, ${s.losses} losses, titles ${s.titles.join(',')}, kit ${s.owned.join(',')}`);

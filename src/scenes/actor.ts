@@ -9,7 +9,8 @@ export class Actor {
   private tex: Phaser.Textures.CanvasTexture;
   pose: PoseName = 'idle0';
   /** resting pose family: idle or a held stance (line taut) */
-  rest: 'idle' | 'hold' | 'down' | 'cheer' = 'idle';
+  rest: PoseName | 'idle' = 'idle';
+  off: string | null = null;
   private timer: Phaser.Time.TimerEvent;
   private beat = 0;
   constructor(public scene: Phaser.Scene, public look: Look, public weapon: string, public flip: boolean, x: number, y: number, scale = 1) {
@@ -21,12 +22,12 @@ export class Actor {
   busy = false;
   set(p: PoseName): void {
     this.pose = p;
-    let pix = drawFighter(this.look, { weapon: this.weapon }, poseFor(p, this.weapon));
+    let pix = drawFighter(this.look, { weapon: this.weapon, off: this.off }, poseFor(p, this.weapon));
     if (this.flip) pix = pix.flipped();
     this.tex.context.putImageData(new ImageData(pix.rgba() as any, FW, FH), 0, 0);
     this.tex.refresh();
   }
-  setWeapon(w: string): void { this.weapon = w; this.set(this.pose); }
+  setWeapon(w: string, off: string | null = this.off): void { this.weapon = w; this.off = off; this.set(this.pose); }
   setLook(l: Look): void { this.look = l; this.set(this.pose); }
   toRest(): void { this.busy = false; this.set(this.rest === 'idle' ? 'idle0' : this.rest); }
   get x(): number { return this.img.x; }

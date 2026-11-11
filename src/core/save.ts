@@ -1,5 +1,5 @@
 // Versioned local snapshot. Tolerant of older or partly unknown data.
-import { NPCS, TOURS, WEAPONS } from './data';
+import { NPCS, TOURS, WEAPONS, WEARS } from './data';
 import { SAVE_VERSION, Save, blankSave } from './game';
 
 const KEY = 'dead-mans-purse/save';
@@ -15,15 +15,18 @@ export function migrate(raw: unknown): Save {
   s.attrs = { ...base.attrs, ...(r.attrs ?? {}) };
   s.settings = { ...base.settings, ...(r.settings ?? {}) };
   s.seen = { ...(r.seen ?? {}) };
-  s.owned = (Array.isArray(r.owned) ? r.owned : []).filter((id) => WEAPONS[id]);
+  s.owned = (Array.isArray(r.owned) ? r.owned : []).filter((id) => WEAPONS[id] || WEARS[id]);
+  s.wear = { hat: null, coat: null, off: null, ...(r.wear ?? {}) };
+  for (const k of ['hat', 'coat', 'off'] as const) { const id = s.wear[k]; if (id && (!WEARS[id] || WEARS[id].slot !== k || !s.owned.includes(id))) s.wear[k] = null; }
+  if (s.shop !== 'armoury') s.shop = 'smith';
   if (!s.owned.includes('chipped_hanger')) s.owned.unshift('chipped_hanger');
-  if (!s.owned.includes(s.main)) s.main = 'chipped_hanger';
+  if (!s.owned.includes(s.main) || !WEAPONS[s.main]) s.main = 'chipped_hanger';
   s.titles = (Array.isArray(r.titles) ? r.titles : []).filter((id) => TOURS[id]);
   if (s.tour && (!TOURS[s.tour.id] || s.tour.round >= TOURS[s.tour.id].built)) s.tour = null;
   const foeOk = (f: Save['foe']) => !f || (WEAPONS[f.weapon] && (!f.npc || NPCS[f.npc]));
   if (!foeOk(s.offer)) s.offer = null;
   const b = s.battle;
-  const battleOk = b && s.foe && foeOk(s.foe) && Array.isArray(b.f) && b.f.length === 2 && WEAPONS[b.f[0].weapon] && WEAPONS[b.f[1].weapon];
+  const battleOk = b && s.foe && foeOk(s.foe) && Array.isArray(b.f) && b.f.length === 2 && WEAPONS[b.f[0].weapon] && WEAPONS[b.f[1].weapon] && typeof b.f[0].off === 'string' && b.chain !== undefined;
   if (!battleOk) {
     s.battle = null;
     s.pending = null;

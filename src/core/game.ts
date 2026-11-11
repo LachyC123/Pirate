@@ -1,9 +1,9 @@
 // Career state and every transition that changes it. Pure: storage lives in save.ts.
-import { ARCHETYPES, AiStyle, Attr, Attrs, Look, NPCS, START_GOLD, TOURS, WEAPONS, xpForLevel } from './data';
-import { Action, Battle, Ev, cloneBattle, legal, makeFighter, newBattle, takeTurn } from './battle';
+import { ARCHETYPES, AiStyle, Attr, Attrs, Look, NPCS, OFF_BUSY, START_GOLD, Slot, TOURS, TOUR_ORDER, WEAPONS, WEARS, xpForLevel } from './data';
+import { Action, Battle, Ev, autoTurn, cloneBattle, legal, makeFighter, newBattle, takeTurn } from './battle';
 import { chooseAI } from './ai';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export type Screen = 'create' | 'harbour' | 'shop' | 'gate' | 'battle' | 'result' | 'prize';
 
 export interface Foe {
@@ -13,6 +13,8 @@ export interface Foe {
   epithet: string;
   ai: AiStyle;
   weapon: string;
+  off?: string;
+  soak?: number;
   attrs: Attrs;
   hp: number;
   acc: number;
@@ -50,6 +52,8 @@ export interface Save {
   gold: number;
   owned: string[];
   main: string;
+  wear: Record<Slot, string | null>;
+  shop: 'smith' | 'armoury';
   titles: string[];
   coins: number;
   wins: number;
@@ -75,7 +79,7 @@ export const DEFAULT_LOOK: Look = { skin: 1, hair: 1, hairColor: 1, beard: 0, sh
 export function blankSave(): Save {
   return {
     v: SAVE_VERSION, name: '', look: { ...DEFAULT_LOOK }, lost: 'ship', level: 1, xp: 0, points: 0,
-    attrs: { might: 2, finesse: 2, grit: 2, guile: 2 }, gold: START_GOLD, owned: ['chipped_hanger'], main: 'chipped_hanger',
+    attrs: { might: 2, finesse: 2, grit: 2, guile: 2 }, gold: START_GOLD, owned: ['chipped_hanger'], main: 'chipped_hanger', wear: { hat: null, coat: null, off: null }, shop: 'smith',
     titles: [], coins: 0, wins: 0, losses: 0, screen: 'create', offer: null, tour: null, battle: null, foe: null, kind: 'friendly',
     pending: null, result: null, prize: null, seed: (Date.now() ^ (Math.random() * 1e9)) | 0, fights: 0,
     settings: { mute: false, reduced: false }, seen: {},
@@ -91,7 +95,28 @@ function roll(s: Save): number {
 }
 const pickOf = <T>(s: Save, a: T[]): T => a[Math.floor(roll(s) * a.length)];
 
-export const playerMaxHp = (s: Save) => 20 + s.attrs.grit * 4 + s.level * 2;
+const worn = (s: Save) => (['hat', 'coat', 'off'] as Slot[]).map((k) => (s.wear[k] ? WEARS[s.wear[k]!] : null)).filter((w): w is NonNullable<typeof w> => !!w);
+const sumWear = (s: Save, f: (w: (typeof WEARS)[string]) => number | undefined) => worn(s).reduce((n, w) => n + (f(w) ?? 0), 0);
+/** attributes including what is worn */
+export function effAttrs(s: Save): Attrs {
+  const a = { ...s.attrs };
+  for (const w of worn(s)) for (const k of Object.keys(w.attr ?? {}) as Attr[]) a[k] += w.attr![k] ?? 0;
+  return a;
+}
+export const playerMaxHp = (s: Save) => 20 + effAttrs(s).grit * 4 + s.level * 2 + sumWear(s, (w) => w.hp);
+export const playerMaxSt = (s: Save) => Math.max(4, 8 + effAttrs(s).grit + sumWear(s, (w) => w.st));
+/** the off-hand move actually available with the weapon in hand */
+export function offMove(s: Save, weapon = s.main): string {
+  if (OFF_BUSY.includes(WEAPONS[weapon].family)) return 'cuff';
+  return (s.wear.off && WEARS[s.wear.off].move) || 'cuff';
+}
+export function lookOf(s: Save): Look {
+  const l: Look = { ...s.look, hat: undefined, coat: undefined };
+  if (s.wear.hat) l.hat = WEARS[s.wear.hat].draw;
+  if (s.wear.coat) { l.coat = WEARS[s.wear.coat].draw; l.coatColor = WEARS[s.wear.coat].color; }
+  return l;
+}
+export const offDraw = (s: Save, weapon = s.main): string | null => (OFF_BUSY.includes(WEAPONS[weapon].family) || !s.wear.off ? null : WEARS[s.wear.off].draw);
 
 export function createPirate(s: Save, name: string, look: Look, lost: Save['lost']): void {
   s.name = name.trim().slice(0, 14) || 'Nameless Jack';
@@ -103,8 +128,9 @@ export function createPirate(s: Save, name: string, look: Look, lost: Save['lost
 // Friendly matches -----------------------------------------------------------
 
 export function rollOffer(s: Save, avoid?: string): void {
-  let arch = pickOf(s, ARCHETYPES);
-  if (avoid && arch.id === avoid) arch = ARCHETYPES[(ARCHETYPES.indexOf(arch) + 1) % ARCHETYPES.length];
+  const pool = ARCHETYPES.filter((a) => !a.after || s.titles.includes(a.after));
+  let arch = pickOf(s, pool);
+  if (avoid && arch.id === avoid) arch = pool[(pool.indexOf(arch) + 1) % pool.length];
   const up = Math.floor((s.level - 1) * 0.75);
   const attrs = { ...arch.attrs };
   for (let i = 0; i < up; i++) attrs[(['might', 'finesse', 'grit', 'guile'] as Attr[])[(i + arch.names.length) % 4]]++;
@@ -117,12 +143,12 @@ export function rollOffer(s: Save, avoid?: string): void {
 
 function foeFromNpc(id: string): Foe {
   const n = NPCS[id];
-  return { npc: id, name: n.name, epithet: n.epithet, ai: n.ai, weapon: n.weapon, attrs: { ...n.attrs }, hp: n.hp, acc: n.acc ?? 0, look: n.look, line: n.intro, purse: 0 };
+  return { npc: id, name: n.name, epithet: n.epithet, ai: n.ai, weapon: n.weapon, off: n.off, soak: n.soak, attrs: { ...n.attrs }, hp: n.hp, acc: n.acc ?? 0, look: n.look, line: n.intro, purse: 0 };
 }
 
 function startBattle(s: Save, foe: Foe, kind: 'friendly' | 'tour'): void {
-  const p = makeFighter(s.name, s.attrs, s.main, playerMaxHp(s), 2);
-  const e = makeFighter(foe.name, foe.attrs, foe.weapon, foe.hp, 4, foe.acc);
+  const p = makeFighter(s.name, effAttrs(s), s.main, playerMaxHp(s), 2, { off: offMove(s), soak: sumWear(s, (w) => w.soak), guard: OFF_BUSY.includes(WEAPONS[s.main].family) ? 0 : sumWear(s, (w) => w.guard), st: sumWear(s, (w) => w.st) });
+  const e = makeFighter(foe.name, foe.attrs, foe.weapon, foe.hp, 4, { acc: foe.acc, off: foe.off, soak: foe.soak });
   s.battle = newBattle(Math.floor(roll(s) * 2 ** 31), p, e);
   s.foe = foe;
   s.kind = kind;
@@ -193,8 +219,9 @@ export function act(s: Save, a: Action): Ev[] | null {
   const from = cloneBattle(b);
   const evs: Ev[] = [];
   takeTurn(b, 0, a, evs);
-  if (b.over === null) takeTurn(b, 1, chooseAI(b, 1, s.foe.ai), evs);
-  b.round++;
+  // a landed lead cut pauses here for the follow-up choice: the enemy has not replied yet
+  if (b.over === null && b.chain === null) autoTurn(b, 1, (bb, w) => chooseAI(bb, w, s.foe!.ai), evs);
+  if (b.chain === null) b.round++;
   s.pending = { from, evs };
   if (b.over !== null) settle(s);
   return evs;
@@ -219,8 +246,9 @@ function settle(s: Save): void {
     } else {
       s.tour.round++;
       const last = s.tour.round >= t.rounds.length;
-      r.xp = last ? 16 : 8;
-      r.gold = last ? 0 : 4;
+      const tier = Math.max(0, TOUR_ORDER.indexOf(t.id));
+      r.xp = (last ? 16 : 8) + tier * 3;
+      r.gold = last ? 0 : 4 + tier * 3;
       if (last) {
         r.champion = true;
         if (!s.titles.includes(t.id)) {
@@ -261,7 +289,8 @@ export function toHarbour(s: Save): void {
   s.screen = 'harbour';
 }
 
-export function goto(s: Save, screen: 'harbour' | 'shop' | 'gate'): void {
+export function goto(s: Save, screen: 'harbour' | 'shop' | 'gate', shop: 'smith' | 'armoury' = 'smith'): void {
+  if (screen === 'shop') s.shop = shop;
   if (s.battle && s.battle.over === null) return;
   if (screen === 'harbour') return toHarbour(s);
   s.battle = null;
@@ -272,25 +301,39 @@ export function goto(s: Save, screen: 'harbour' | 'shop' | 'gate'): void {
 
 // Shop and character ---------------------------------------------------------
 
+export const priceOf = (id: string) => (WEAPONS[id] ?? WEARS[id])?.price ?? 0;
 export function canStock(s: Save, id: string): boolean {
-  const w = WEAPONS[id];
-  return !!w && !w.prize && (!w.stockAfter || s.titles.includes(w.stockAfter));
+  const w = WEAPONS[id], x = WEARS[id];
+  if (w) return !w.prize && (!w.stockAfter || s.titles.includes(w.stockAfter));
+  return !!x && (!x.stockAfter || s.titles.includes(x.stockAfter));
 }
-
-export function buy(s: Save, id: string, andEquip = false): boolean {
-  const w = WEAPONS[id];
-  if (!w || s.owned.includes(id) || !canStock(s, id) || s.gold < w.price || lockedKit(s)) return false;
-  s.gold -= w.price;
-  s.owned.push(id);
-  if (andEquip) s.main = id;
-  return true;
-}
+export const stockGate = (id: string): string | undefined => (WEAPONS[id] ?? WEARS[id])?.stockAfter;
 
 export const lockedKit = (s: Save) => !!s.tour || (!!s.battle && s.battle.over === null);
 
+export function isEquipped(s: Save, id: string): boolean {
+  return s.main === id || s.wear.hat === id || s.wear.coat === id || s.wear.off === id;
+}
+
 export function equip(s: Save, id: string): boolean {
-  if (!s.owned.includes(id) || !WEAPONS[id] || lockedKit(s)) return false;
-  s.main = id;
+  if (!s.owned.includes(id) || lockedKit(s)) return false;
+  if (WEAPONS[id]) s.main = id;
+  else if (WEARS[id]) s.wear[WEARS[id].slot] = id;
+  else return false;
+  return true;
+}
+
+export function unequip(s: Save, slot: Slot): boolean {
+  if (lockedKit(s)) return false;
+  s.wear[slot] = null;
+  return true;
+}
+
+export function buy(s: Save, id: string, andEquip = false): boolean {
+  if ((!WEAPONS[id] && !WEARS[id]) || s.owned.includes(id) || !canStock(s, id) || s.gold < priceOf(id) || lockedKit(s)) return false;
+  s.gold -= priceOf(id);
+  s.owned.push(id);
+  if (andEquip) equip(s, id);
   return true;
 }
 

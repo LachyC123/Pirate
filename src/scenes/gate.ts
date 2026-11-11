@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { ARCHETYPES, FAMILY_INFO, NPCS, TOURS, TOUR_ORDER, WEAPONS } from '../core/data';
-import { acceptOffer, enterTour, goto, rollOffer, tourOpen } from '../core/game';
+import { acceptOffer, enterTour, goto, lookOf, offDraw, rollOffer, tourOpen } from '../core/game';
 import { L, S, btn, commit, go, h, ico, mount, tex } from '../app';
 import { gate } from '../art/scenes';
 import { Actor } from './actor';
@@ -16,7 +16,7 @@ export class Gate extends Phaser.Scene {
     const next = TOUR_ORDER.find((t) => !S.titles.includes(t)) ?? TOUR_ORDER[TOUR_ORDER.length - 1];
     this.add.image(0, 0, tex(this, 'bg', gate(L.W, TOURS[next].name, S.titles.map((t) => TOURS[t].pennant)))).setOrigin(0);
     const cx = L.W / 2;
-    new Actor(this, S.look, S.main, false, L.land ? Math.round(L.W * 0.14) : cx - 50, 166);
+    new Actor(this, lookOf(S), S.main, false, L.land ? Math.round(L.W * 0.14) : cx - 50, 166).setWeapon(S.main, offDraw(S));
     if (!S.offer) rollOffer(S);
     const panel = h('div.gatepanel', null);
     const put = (...k: (Node | string | null)[]) => { for (const x of k) if (x) panel.append(x); };
@@ -43,11 +43,11 @@ export class Gate extends Phaser.Scene {
             const t = TOURS[id], won = S.titles.includes(id), open = tourOpen(S, id);
             return btn([h('b', null, t.name + (won ? ' ✓' : '')), h('span.small', null, won ? 'Won. Pennant flying over the gate.' : open ? t.blurb : `Locked until you win ${TOURS[t.requires!].name}.`)], () => { tourSel = id; go(); }, 'wide big', { disabled: !open || won, 'data-tour': id });
           }),
-          h('p.small', null, 'Two more Tarwater cups and four further circuits are planned and not yet built.'));
+          h('p.small', null, 'Four further circuits are planned and not yet built.'));
       } else {
         const t = TOURS[sel];
         const entrants = t.rounds.filter((r) => NPCS[r]);
-        entrants.forEach((r, i) => new Actor(this, NPCS[r].look, NPCS[r].weapon, true, L.land ? Math.round(L.W * 0.24) + i * 30 : cx + 20 + i * 30, 166));
+        entrants.forEach((r, i) => new Actor(this, NPCS[r].look, NPCS[r].weapon, true, L.land ? Math.round(L.W * 0.22) + i * 26 : cx + 8 + i * 26, 166));
         put(h('div.sheethead', null, h('h2', null, t.name), btn('◂ Back', () => { tourSel = null; go(); }, 'small', { 'data-back': '1' })),
           btn(`Enter with ${WEAPONS[S.main].name}`, () => { enterTour(S, sel); tourSel = null; mode = 'menu'; go(); }, 'wide brass', { 'data-enter': sel }),
           ...t.rounds.map((r, i) => h('div.small', null, NPCS[r] ? h('b', null, `${i + 1}. ${NPCS[r].name}`) : h('b', null, `${i + 1}. Not built yet`), NPCS[r] ? `: ${NPCS[r].epithet}. ${WEAPONS[NPCS[r].weapon].name}.` : '')),

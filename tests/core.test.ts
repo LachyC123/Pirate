@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Battle, Ev, legal, makeFighter, moveStats, newBattle, takeTurn } from '../src/core/battle';
+import { Battle, Ev, autoTurn, legal, makeFighter, moveStats, newBattle, takeTurn } from '../src/core/battle';
 import { chooseAI } from '../src/core/ai';
-import { act, acceptOffer, blankSave, buy, createPirate, enterTour, equip, nextBout, presented, rollOffer, toHarbour, Save } from '../src/core/game';
+import { act, acceptOffer, blankSave, buy, createPirate, effAttrs, enterTour, equip, lookOf, nextBout, offMove, playerMaxHp, playerMaxSt, presented, rollOffer, toHarbour, Save } from '../src/core/game';
+import { advise } from '../src/core/ai';
+import { TOURS, TOUR_ORDER, WEARS } from '../src/core/data';
 import { migrate } from '../src/core/save';
 import { ARCHETYPES, MOVES, NPCS, WEAPONS } from '../src/core/data';
 
@@ -98,17 +100,100 @@ describe('duel rules', () => {
   it('AI always returns a legal action', () => {
     for (const n of [...Object.values(NPCS), ...ARCHETYPES]) for (let seed = 1; seed < 30; seed++) {
       const b = newBattle(seed, makeFighter('P', A, 'towline', 30, 2), makeFighter('E', n.attrs, n.weapon, n.hp, 4));
-      for (let i = 0; i < 60 && b.over === null; i++) {
-        const pa = chooseAI(b, 0, 'moll'); expect(legal(b, 0, pa).ok).toBe(true); takeTurn(b, 0, pa, []);
-        if (b.over !== null) break;
-        const ea = chooseAI(b, 1, n.ai); expect(legal(b, 1, ea).ok).toBe(true); takeTurn(b, 1, ea, []);
-      }
+      const checked = (style: any) => (bb: Battle, w: 0 | 1) => { const a = chooseAI(bb, w, style); expect(legal(bb, w, a).ok).toBe(true); return a; };
+      for (let i = 0; i < 60 && b.over === null; i++) { autoTurn(b, 0, checked('moll'), []); if (b.over === null) autoTurn(b, 1, checked(n.ai), []); }
     }
   });
   it('every weapon move exists', () => { for (const w of Object.values(WEAPONS)) for (const m of w.moves) expect(MOVES[m]).toBeTruthy(); });
+  it('paired blades: a landed cut pauses for a paid follow-up before the enemy replies', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const b = duel('fishwifes_pair', 'chipped_hanger', seed); b.f[1].pos = 3;
+      const evs: Ev[] = []; takeTurn(b, 0, { t: 'move', id: 'cut' }, evs);
+      if (b.chain !== 0) continue;
+      expect(legal(b, 0, { t: 'advance' }).ok).toBe(false);
+      expect(legal(b, 1, { t: 'breath' }).ok).toBe(false);
+      const st = b.f[0].st;
+      takeTurn(b, 0, { t: 'follow' }, evs);
+      expect(b.chain).toBeNull(); expect(b.f[0].st).toBe(st - 3 + 1);
+      return;
+    }
+    throw new Error('cut never landed');
+  });
+  it('guard breaker ignores a brace and drives the enemy back', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const b = duel('caulking_mallet', 'chipped_hanger', seed); b.f[1].pos = 3; b.f[1].braced = true;
+      const evs: Ev[] = []; takeTurn(b, 0, { t: 'move', id: 'breaker' }, evs);
+      const at = evs.find((e) => e.e === 'attack');
+      if (at && at.e === 'attack' && at.result === 'hit') { expect(at.broke).toBe(true); expect(at.dmg).toBeGreaterThanOrEqual(7); expect(b.f[1].pos).toBe(4); expect(b.f[1].riposte).toBe(false); return; }
+    }
+    throw new Error('breaker never landed');
+  });
+  it("Cooper's driver: stepping back makes it whiff and costs him stamina", () => {
+    const b = duel('chipped_hanger', 'coopers_persuader'); b.f[1].pos = 3;
+    const evs: Ev[] = [];
+    takeTurn(b, 1, { t: 'move', id: 'plant' }, evs);
+    expect(advise(b, 0)).toEqual({ t: 'withdraw' });
+    takeTurn(b, 0, { t: 'withdraw' }, evs);
+    const a = chooseAI(b, 1, 'mauler'); expect(a).toEqual({ t: 'whiff' });
+    const st = b.f[1].st; takeTurn(b, 1, a, evs);
+    expect(b.f[1].pending).toBeNull(); expect(b.f[1].st).toBe(st - 2 + 1); expect(b.f[0].hp).toBe(30);
+  });
+  it('anchor: heave marks the space, reel strikes inside the mark and misses beyond it', () => {
+    const b = duel('chipped_hanger', 'kedge_chain');
+    const evs: Ev[] = [];
+    takeTurn(b, 1, { t: 'move', id: 'heave' }, evs);
+    expect(b.f[1].anchor).toBe(2);
+    expect(legal(b, 1, { t: 'move', id: 'heave' }).why).toMatch(/Reel/);
+    expect(advise(b, 0)).toEqual({ t: 'withdraw' });
+    const hp = b.f[0].hp;
+    takeTurn(b, 0, { t: 'withdraw' }, evs);
+    takeTurn(b, 1, { t: 'move', id: 'reel' }, evs);
+    expect(b.f[0].hp).toBe(hp); expect(b.f[1].anchor).toBeNull();
+    const last = evs.filter((e) => e.e === 'attack').pop(); expect(last && last.e === 'attack' && last.empty).toBe(true);
+    // standing on the mark instead: struck and dragged in
+    for (let seed = 1; seed < 40; seed++) {
+      const c = duel('chipped_hanger', 'kedge_chain', seed); c.f[1].anchor = 2;
+      const e2: Ev[] = []; takeTurn(c, 1, { t: 'move', id: 'reel' }, e2);
+      const at = e2.find((e) => e.e === 'attack');
+      if (at && at.e === 'attack' && at.result === 'hit') { expect(c.f[0].pos).toBe(3); return; }
+    }
+    throw new Error('reel never landed');
+  });
+  it('double hitch dashes in and cuts twice. A brace turns both', () => {
+    const b = duel('chipped_hanger', 'tansys_hitches'); b.f[1].pos = 5;
+    const evs: Ev[] = [];
+    takeTurn(b, 1, { t: 'move', id: 'cross' }, evs);
+    expect(advise(b, 0)).toEqual({ t: 'brace' });
+    takeTurn(b, 0, { t: 'brace' }, evs);
+    takeTurn(b, 1, { t: 'move', id: 'flurry' }, evs);
+    expect(b.f[1].pos).toBe(3);
+    const hits = evs.filter((e) => e.e === 'attack');
+    expect(hits.length).toBe(2); expect(hits.every((e) => e.e === 'attack' && e.result !== 'hit')).toBe(true);
+  });
 });
 
 describe('career', () => {
+  it('wearables and off-hand gear change the fighter, and two-handed families shelve the off hand', () => {
+    const s = fresh(); s.gold = 500;
+    const hp = playerMaxHp(s), st = playerMaxSt(s);
+    expect(buy(s, 'knit_cap', true)).toBe(true); expect(playerMaxHp(s)).toBe(hp + 3); expect(lookOf(s).hat).toBe('knit');
+    expect(buy(s, 'straw_hat', true)).toBe(true); expect(playerMaxHp(s)).toBe(hp); expect(playerMaxSt(s)).toBe(st + 1);
+    expect(buy(s, 'tricorn', true)).toBe(true); expect(effAttrs(s).guile).toBe(3); expect(s.attrs.guile).toBe(2);
+    expect(buy(s, 'buckler', true)).toBe(true); expect(offMove(s)).toBe('bash');
+    expect(buy(s, 'fishwifes_pair', true)).toBe(true); expect(offMove(s)).toBe('cuff');
+    expect(buy(s, 'diving_helmet')).toBe(false); // champions only
+    rollOffer(s); acceptOffer(s); expect(s.battle!.f[0].off).toBe('cuff'); expect(s.battle!.f[0].guard).toBe(0);
+    for (const w of Object.values(WEARS)) if (w.move) expect(MOVES[w.move].offhand).toBe(true);
+  });
+  it('the whole Tarwater circuit can be won in order, each prize once', () => {
+    const s = fresh();
+    for (const id of TOUR_ORDER) {
+      enterTour(s, id); expect(s.tour!.id).toBe(id);
+      for (let r = 0; r < TOURS[id].rounds.length; r++) { forceWin(s); if (r < TOURS[id].rounds.length - 1) nextBout(s); }
+      expect(s.titles).toContain(id); expect(s.owned).toContain(TOURS[id].prize.weapon!); toHarbour(s);
+    }
+    expect(s.coins).toBe(4); expect(s.titles.length).toBe(4);
+  });
   it('economy: 8 gold, about 12 per friendly, pike at 30 after two wins', () => {
     const s = fresh();
     expect(s.gold).toBe(8);

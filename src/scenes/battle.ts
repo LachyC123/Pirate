@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { FAMILY_INFO, LOST, MOVES, NPCS, TOURS, WEAPONS } from '../core/data';
-import { Action, Battle, Ev, breathGain, cloneBattle, dist, legal, moveStats, movesOf, other } from '../core/battle';
-import { act, enterTour, equip, goto, leaveTour, nextBout, presented, rematch, rollOffer, toHarbour } from '../core/game';
+import { FAMILY_INFO, LOST, MOVES, NPCS, TOURS, TOUR_ORDER, WEAPONS } from '../core/data';
+import { PoseName } from '../art/fighter';
+import { Action, Battle, Ev, breathGain, cloneBattle, dist, legal, moveStats, movesOf, other, threatCells } from '../core/battle';
+import { act, effAttrs, enterTour, equip, goto, leaveTour, lookOf, nextBout, offDraw, presented, rematch, rollOffer, toHarbour } from '../core/game';
 import { L, S, btn, commit, go, h, ico, mount, sx, sy, tex, ui } from '../app';
 import { arena, laneTile, railOf } from '../art/scenes';
 import { weaponSprite } from '../art/fighter';
@@ -12,6 +13,7 @@ import { Sfx, sfx } from '../sfx';
 import { resetGate } from './gate';
 
 const GY = 150;
+const HOLD: Record<string, PoseName> = { cast: 'hold', plant: 'planted', cross: 'crossed' };
 let inspect = false;
 
 export class BattleScene extends Phaser.Scene {
@@ -20,6 +22,7 @@ export class BattleScene extends Phaser.Scene {
   tiles: Phaser.GameObjects.Image[] = [];
   fx!: Phaser.GameObjects.Graphics;
   crowd!: Phaser.GameObjects.Image;
+  anchors: Phaser.GameObjects.Image[] = [];
   busy = false;
   fan: 'base' | 'attack' = 'base';
   sp = 40; x0 = 0;
@@ -27,7 +30,7 @@ export class BattleScene extends Phaser.Scene {
   els!: { hud: [HTMLElement, HTMLElement]; cap: HTMLElement; fan: HTMLElement; info: HTMLElement };
   constructor() { super('Battle'); }
   laneX = (i: number) => Math.round(this.x0 + i * this.sp);
-  T = (ms: number) => (S.settings.reduced ? ms * 0.35 : ms);
+  T = (ms: number) => ((window as any).__dmp?.fast ? ms * 0.04 : S.settings.reduced ? ms * 0.35 : ms);
   wait = (ms: number) => new Promise<void>((r) => this.time.delayedCall(this.T(ms), () => r()));
   tween = (targets: any, props: any, ms: number) => new Promise<void>((r) => this.tweens.add({ targets, ...props, duration: Math.max(1, this.T(ms)), onComplete: () => r() }));
 
@@ -36,7 +39,8 @@ export class BattleScene extends Phaser.Scene {
     if (!b || !foe) { toHarbour(S); S.screen = 'harbour'; go(); return; }
     this.busy = false; this.fan = 'base'; this.tiles = []; this.logLine = `"${foe.line}"`;
     const champion = !!foe.npc && S.kind === 'tour';
-    const ar = arena(L.W, foe.npc === 'old_moll' ? 10 : 6);
+    const tier = S.tour ? TOUR_ORDER.indexOf(S.tour.id) : S.result?.tour ? TOUR_ORDER.indexOf(S.result.tour) : -1;
+    const ar = arena(L.W, Math.min(14, 6 + Math.max(0, tier) * 2 + (champion && foe.npc && tier >= 0 && TOURS[TOUR_ORDER[tier]].rounds.slice(-1)[0] === foe.npc ? 4 : 0)));
     this.add.image(0, 0, tex(this, 'bg', ar.bg)).setOrigin(0);
     this.crowd = this.add.image(0, 0, tex(this, 'crowd', ar.crowd)).setOrigin(0);
     this.add.image(0, 0, tex(this, 'rail', railOf(ar.crowd))).setOrigin(0);
@@ -47,7 +51,9 @@ export class BattleScene extends Phaser.Scene {
     for (let i = 0; i < 7; i++) this.tiles.push(this.add.image(this.laneX(i), GY + 1, 'tile_plain').setOrigin(0.5, 0));
     this.view = cloneBattle(S.pending ? S.pending.from : b);
     this.fx = this.add.graphics();
-    this.A = [new Actor(this, S.look, this.view.f[0].weapon, false, this.laneX(this.view.f[0].pos), GY), new Actor(this, foe.look, this.view.f[1].weapon, true, this.laneX(this.view.f[1].pos), GY)];
+    this.A = [new Actor(this, lookOf(S), this.view.f[0].weapon, false, this.laneX(this.view.f[0].pos), GY), new Actor(this, foe.look, this.view.f[1].weapon, true, this.laneX(this.view.f[1].pos), GY)];
+    this.A[0].setWeapon(this.view.f[0].weapon, offDraw(S, this.view.f[0].weapon));
+    this.anchors = [0, 1].map((i) => { const ws = weaponSprite(WEAPONS[this.view.f[i].weapon].sprite); return this.add.image(0, GY + 3, tex(this, 'anchor' + i, ws.pix)).setOrigin(ws.gx / ws.pix.w, ws.gy / ws.pix.h).setAngle(i === 0 ? 90 : 90).setFlipX(i === 1).setVisible(false).setDepth(1); });
     this.A[0].img.setDepth(2); this.A[1].img.setDepth(1); this.fx.setDepth(3);
 
     const hud = (side: string) => h('div.hud.' + side, null);
@@ -75,8 +81,8 @@ export class BattleScene extends Phaser.Scene {
     for (const i of [0, 1] as const) {
       const f = this.view.f[i], a = this.A[i];
       a.x = this.laneX(f.pos);
-      a.rest = f.pending ? 'hold' : 'idle';
-      if (f.hp > 0 && !a.busy) a.set(f.pending ? 'hold' : f.braced ? 'brace' : 'idle0');
+      a.rest = f.pending ? HOLD[f.pending] ?? 'hold' : 'idle';
+      if (f.hp > 0 && !a.busy) a.set(f.pending ? HOLD[f.pending] ?? 'hold' : f.braced ? 'brace' : 'idle0');
       a.busy = f.braced && f.hp > 0 ? true : a.busy && f.hp <= 0;
     }
   }
@@ -95,31 +101,48 @@ export class BattleScene extends Phaser.Scene {
       if (f.braced) chips.push('Braced');
       if (f.riposte) chips.push('Riposte ready');
       if (w.family === 'pistol') chips.push(f.loaded ? 'Loaded' : 'Empty');
-      if (f.pending) chips.push('Line out');
+      if (f.pending) chips.push(MOVES[f.pending].windup!.caption);
+      if (f.anchor !== null) chips.push('Anchor out');
+      if (f.dazed) chips.push('Dazzled');
       const bar = (cls: string, icon: string, cur: number, max: number, label: string) => h('div.res.' + cls, { 'aria-label': `${label} ${cur} of ${max}` }, ico(icon, 18), h('span.n', null, `${cur}/${max}`), h('span.meter', null, h('i', { style: `width:${Math.round((100 * cur) / max)}%` })));
       this.els.hud[i].replaceChildren(h('div.nm', null, f.name, h('span.wp', null, ' · ' + w.name)), bar('hp', 'hp', f.hp, f.maxHp, 'Health'), bar('st', 'st', f.st, f.maxSt, 'Stamina'), h('div.status', null, ...chips.map((c) => h('span', null, c))));
       this.els.hud[i].dataset.hp = String(f.hp); this.els.hud[i].dataset.st = String(f.st); this.els.hud[i].dataset.pos = String(f.pos);
     }
-    // threat cells and the opponent's cue
+    // threatened spaces on the deck, and the opponent's cue
     const foe = v.f[1];
-    const threat = new Set<number>();
-    if (foe.pending && v.over === null) for (let p = v.f[0].pos; p < foe.pos; p++) threat.add(p);
-    this.tiles.forEach((t, i) => t.setTexture(threat.has(i) ? 'tile_threat' : 'tile_plain'));
-    if (foe.pending && v.over === null) {
+    const live = v.over === null;
+    const threat = new Set<number>(live ? threatCells(v, 1) : []);
+    const mine = new Set<number>(live ? threatCells(v, 0) : []);
+    this.tiles.forEach((t, i) => t.setTexture(threat.has(i) ? 'tile_threat' : mine.has(i) ? 'tile_reach' : 'tile_plain'));
+    const short = foe.name.split(' ').slice(0, 2).join(' ');
+    if (foe.pending && live) {
+      const wu = MOVES[foe.pending].windup!;
       this.els.cap.className = 'caption cue';
-      this.els.cap.textContent = `${MOVES[foe.pending].windup!.caption}! ${foe.name.split(' ').slice(0, 2).join(' ')} hauls next turn. Brace, or close in.`;
+      this.els.cap.textContent = `${wu.caption}! ${short} ${wu.verb} next turn. ${wu.advice}`;
+    } else if (foe.anchor !== null && live && threat.has(v.f[0].pos)) {
+      this.els.cap.className = 'caption cue';
+      this.els.cap.textContent = `Inside ${short}'s anchor line! Step back past the mark, or brace.`;
     } else { this.els.cap.className = 'caption'; this.els.cap.textContent = this.logLine; }
     this.drawFx();
   }
   drawFx(): void {
     const g = this.fx; g.clear();
-    for (const i of [0, 1] as const) {
-      const f = this.view.f[i];
-      if (!f.pending || this.view.over !== null) continue;
-      const a = this.A[i], t = this.A[other(i)], dir = i === 0 ? 1 : -1;
-      const x0 = Math.round(a.x + dir * 18), y0 = GY - 26, x1 = Math.round(t.x - dir * 4), y1 = GY - 22;
-      const n = Math.abs(x1 - x0);
+    const chain = (x0: number, y0: number, x1: number, y1: number) => {
+      const n = Math.abs(x1 - x0), dir = Math.sign(x1 - x0) || 1;
       for (let k = 0; k <= n; k += 2) { const x = x0 + dir * k, y = Math.round(y0 + ((y1 - y0) * k) / Math.max(1, n)); g.fillStyle(k % 4 ? P.steelDark : P.steelLight, 1); g.fillRect(x, y, 2, 1); g.fillStyle(P.ink, 1); g.fillRect(x, y + 1, 2, 1); }
+    };
+    for (const i of [0, 1] as const) {
+      const f = this.view.f[i], a = this.A[i], t = this.A[other(i)], dir = i === 0 ? 1 : -1;
+      const live = this.view.over === null;
+      this.anchors[i]?.setVisible(live && f.anchor !== null);
+      if (live && f.anchor !== null) {
+        const ax = this.laneX(f.anchor);
+        this.anchors[i].setPosition(ax, GY - 2);
+        chain(Math.round(a.x + dir * 12), GY - 20, ax - dir * 4, GY - 3);
+      }
+      if (!live || f.pending !== 'cast') continue;
+      const x1 = Math.round(t.x - dir * 4), y1 = GY - 22;
+      chain(Math.round(a.x + dir * 18), GY - 26, x1, y1);
       g.fillStyle(P.brass, 1); g.fillRect(x1 - 2, y1 - 2, 4, 4); g.fillStyle(P.brassLight, 1); g.fillRect(x1 - 1, y1 - 2, 2, 1);
     }
   }
@@ -152,15 +175,22 @@ export class BattleScene extends Phaser.Scene {
         if (onTap) onTap(); else if (a) this.commitAction(a);
       } }, ico(icon, 28), h('span.t', null, h('b', null, name), h('span.s', null, off ? why! : sub)));
     };
-    const moveCard = (id: string) => {
+    const moveCard = (id: string) => moveCardRaw(id, { t: 'move', id });
+    const moveCardRaw = (id: string, action: Action) => {
       const m = MOVES[id], s = moveStats(v, 0, id);
       const sub = m.dmg ? `${s.lo}–${s.hi} dmg · ${s.acc}% · ${m.st} st${s.note ? ' · ' + s.note : ''}` : `${m.st} stamina`;
-      return card('move:' + id, m.icon, m.name, sub, { t: 'move', id }, s.ok ? undefined : s.why, `${m.desc}${m.reach ? ` Reach ${reachText(id)}.` : ''}${m.dmg ? ` ${s.lo}–${s.hi} damage, ${s.acc}% to land, ${m.st} stamina.` : ''}`);
+      return card(action.t === 'move' ? 'move:' + id : action.t, m.icon, m.name, sub, action, s.ok ? undefined : s.why, `${m.desc}${m.reach ? ` Reach ${reachText(id)}.` : ''}${m.dmg ? ` ${s.lo}–${s.hi} damage, ${s.acc}% to land, ${m.st} stamina.` : ''}`);
     };
     const cards: HTMLElement[] = [];
+    if (v.chain === 0) {
+      cards.push(moveCardRaw('follow', { t: 'follow' }), card('pass', 'back', 'Hold Back', 'Keep the stamina', { t: 'pass' }, undefined, 'End your turn without the second cut.'));
+      el.replaceChildren(...cards); this.placeFan(); this.say('The cut landed. Follow up with the other blade?');
+      return;
+    }
     if (this.fan === 'base') {
       const anyAttack = movesOf(me).some((id) => moveStats(v, 0, id).ok);
       if (me.pending) cards.push(moveCard(MOVES[me.pending].windup!.release));
+      if (me.anchor !== null && movesOf(me).includes('reel')) cards.push(moveCard('reel'));
       cards.push(card('attack', 'attack', 'Attack ▸', anyAttack ? WEAPONS[me.weapon].name : 'Nothing usable right now: tap to see why', null, undefined, 'Opens the moves of the weapon in your hand. You can back out.', () => { this.fan = 'attack'; this.renderFan(); }));
       const adv = legal(v, 0, { t: 'advance' }), wd = legal(v, 0, { t: 'withdraw' });
       cards.push(card('advance', 'advance', 'Advance', `Close to ${d - 1} space${d - 1 === 1 ? '' : 's'}`, { t: 'advance' }, adv.why, 'Step one space toward the enemy. You cannot pass through them.'));
@@ -168,11 +198,15 @@ export class BattleScene extends Phaser.Scene {
       cards.push(card('brace', 'brace', 'Brace', 'Halve the next hit · +2 stamina', { t: 'brace' }, undefined, 'Until your next turn, a hit that lands is blocked for about half, you cannot be shoved or hauled, and a blocked heavy move costs the attacker 2 stamina. With a hanger or cutlass, a block readies Riposte.'));
       cards.push(card('breath', 'breath', 'Catch Breath', `+${Math.min(me.maxSt - me.st, breathGain(me) + 1)} stamina`, { t: 'breath' }, undefined, 'Always available. Recover stamina instead of acting.'));
     } else {
-      for (const id of movesOf(me)) if (!MOVES[id].releaseOf || me.pending) cards.push(moveCard(id));
+      for (const id of movesOf(me)) if ((!MOVES[id].releaseOf || me.pending) && !(MOVES[id].reel && me.anchor === null) && !(MOVES[id].anchorThrow && me.anchor !== null) && !(MOVES[id].windup && me.pending)) cards.push(moveCard(id));
       cards.push(card('back', 'back', 'Back', 'Other actions', null, undefined, 'Return without spending your turn.', () => { this.fan = 'base'; this.renderFan(); }));
     }
     el.replaceChildren(...cards);
-    // landscape: tuck the fan beside the pirate, on whichever side has room
+    this.placeFan();
+  }
+  /** landscape: tuck the fan beside the pirate, on whichever side has room */
+  placeFan(): void {
+    const el = this.els.fan;
     if (L.land) {
       const fw = 172, px = sx(this.A[0].x), ex = sx(this.A[1].x);
       let left = px - 34 - fw;
@@ -196,6 +230,7 @@ export class BattleScene extends Phaser.Scene {
     this.busy = true; this.renderFan();
     for (const ev of evs) await this.show(ev);
     presented(S); commit();
+    this.view = cloneBattle(S.battle!); this.refresh();
     this.busy = false;
     if (this.view.over !== null) { await this.wait(500); if (S.screen === 'prize') this.showPrize(false); else this.showResult(); }
     else this.renderFan();
@@ -211,11 +246,13 @@ export class BattleScene extends Phaser.Scene {
       await this.wait(180);
       return;
     }
+    if (ev.e === 'chain') return;
     const who = ev.who, a = this.A[who], o = other(who), d = this.A[o], dir = who === 0 ? 1 : -1;
     const nm = v.f[who].name.split(' ')[0] === 'Old' ? 'Old Moll' : v.f[who].name, on = v.f[o].name.split(' ')[0] === 'Old' ? 'Old Moll' : v.f[o].name;
     switch (ev.e) {
       case 'step': {
         v.f[who].pos = ev.to;
+        if (ev.why === 'dash') { a.busy = true; a.set('walk0'); sfx('cloth'); await this.tween(a.img, { x: this.laneX(ev.to), ease: 'Quad.in' }, 130); this.drawFx(); break; }
         const forced = ev.why === 'push' || ev.why === 'pull';
         a.busy = true;
         if (forced) { a.set('hit'); sfx('wood'); await this.tween(a.img, { x: this.laneX(ev.to), ease: 'Quad.out' }, 200); }
@@ -236,11 +273,21 @@ export class BattleScene extends Phaser.Scene {
       }
       case 'reload': a.busy = true; a.set('reload'); sfx('misfire'); this.say(`${nm} reloads.`); await this.wait(380); this.float(who, 'Loaded', 'info'); a.busy = false; a.toRest(); break;
       case 'drop': v.f[who].pending = null; a.rest = 'idle'; this.float(who, 'Line dropped', 'info'); this.refresh(); await this.wait(200); break;
+      case 'anchor': v.f[who].anchor = ev.cell; this.refresh(); sfx('thud'); this.chips(this.laneX(ev.cell), P.timberLight); break;
+      case 'whiff': {
+        a.busy = true; v.f[who].pending = null; a.rest = 'idle';
+        a.set('heavyDown'); sfx('wood'); this.chips(a.x + dir * 16, P.timberLight);
+        this.say(`${nm} swings at empty deck: ${MOVES[ev.move].name} wasted.`); this.float(who, 'Whiff! −2 stamina', 'miss');
+        if (!S.settings.reduced) this.cameras.main.shake(90, 0.006);
+        this.refresh(); await this.wait(420); a.busy = false; a.toRest();
+        break;
+      }
       case 'cast': {
-        a.busy = true; this.say(`${nm} casts the line!`);
-        a.set('castBack'); await this.wait(260); a.set('castOut'); sfx('chain');
+        const hold = HOLD[ev.move] ?? 'hold';
+        a.busy = true; this.say(`${nm}: ${MOVES[ev.move].name}!`);
+        if (ev.move === 'cast') { a.set('castBack'); await this.wait(260); a.set('castOut'); sfx('chain'); } else { a.set('brace'); await this.wait(200); sfx(ev.move === 'plant' ? 'wood' : 'steel'); }
         v.f[who].pending = ev.move; await this.wait(120);
-        a.rest = 'hold'; a.set('hold'); this.refresh();
+        a.rest = hold; a.set(hold); this.refresh();
         if (!S.settings.reduced) this.tweens.add({ targets: this.crowd, y: 4, duration: 200, yoyo: true, hold: 500 });
         await this.wait(420);
         break;
@@ -259,13 +306,15 @@ export class BattleScene extends Phaser.Scene {
       case 'attack': {
         const m = MOVES[ev.move], w = WEAPONS[v.f[who].weapon];
         a.busy = true; d.busy = true;
-        const pre: Record<string, [any, any, number]> = { slash: ['windup', 'strike', 170], heavy: ['heavyUp', 'heavyDown', 300], thrust: ['thrustBack', 'thrustOut', 190], shove: ['thrustBack', 'shove', 170], cuff: ['cuffBack', 'cuffOut', 130], shot: ['aim', 'fire', 260], haul: ['hold', 'haul', 220], cast: ['castBack', 'castOut', 200], reload: ['reload', 'reload', 100] };
-        const [p0, p1, t0] = pre[m.anim];
+        const pre: Record<string, [any, any, number]> = { plant: ['planted', 'heavyDown', 100], cross: ['crossed', 'strike', 100], dazzle: ['cuffBack', 'dazzle', 150], slash: ['windup', 'strike', 170], heavy: ['heavyUp', 'heavyDown', 300], thrust: ['thrustBack', 'thrustOut', 190], shove: ['thrustBack', 'shove', 170], cuff: ['cuffBack', 'cuffOut', 130], shot: ['aim', 'fire', 260], haul: ['hold', 'haul', 220], cast: ['castBack', 'castOut', 200], reload: ['reload', 'reload', 100] };
+        const [p0, p1, t0] = ev.again ? ['cuffBack', 'cuffOut', 90] : m.reel ? ['hold', 'haul', 200] : m.releaseOf === 'cross' ? ['crossed', 'strike', 60] : pre[m.anim];
         this.say(`${nm}: ${m.name}${ev.note ? ` (${ev.note.toLowerCase()})` : ''}.`);
         a.set(p0); await this.wait(t0);
         const gap = Math.abs(d.x - a.x), home = a.x;
         const reach = m.offhand ? 12 : m.anim === 'shove' ? 14 : w.len + 14;
-        const lunge = m.anim === 'shot' || m.anim === 'haul' ? 0 : Math.max(0, Math.min(30, gap - reach - 12));
+        if (m.reel) v.f[who].anchor = null;
+        if (m.anim === 'dazzle' && !S.settings.reduced) this.cameras.main.flash(120, 255, 230, 150);
+        const lunge = m.anim === 'shot' || m.anim === 'haul' || m.anim === 'dazzle' || m.anchorThrow ? 0 : Math.max(0, Math.min(30, gap - reach - 12));
         a.set(p1);
         if (m.anim === 'shot') {
           sfx('shot');
@@ -275,7 +324,8 @@ export class BattleScene extends Phaser.Scene {
         const material: Sfx = m.offhand || m.anim === 'shove' ? 'wood' : m.anim === 'shot' ? 'thud' : 'steel';
         if (ev.result === 'hit') {
           v.f[o].hp = Math.max(0, v.f[o].hp - ev.dmg);
-          d.set('hit'); sfx(material); this.float(o, `−${ev.dmg}${ev.pinned ? ' pinned!' : ''}`, 'dmg');
+          d.set('hit'); sfx(material); this.float(o, m.daze ? 'Dazzled!' : `−${ev.dmg}${ev.pinned ? ' pinned!' : ''}${ev.broke ? ' guard broken!' : ''}`, m.daze ? 'info' : 'dmg');
+          if (m.drain) v.f[o].st = Math.max(0, v.f[o].st - m.drain);
           if (!S.settings.reduced) { this.cameras.main.shake(m.heavy ? 130 : 70, m.heavy ? 0.01 : 0.005); this.tweens.add({ targets: this.crowd, y: -2, duration: 90, yoyo: true }); }
           this.tweens.add({ targets: d.img, x: d.x + dir * 3, duration: 50, yoyo: true });
         } else if (ev.result === 'block') {
@@ -284,7 +334,7 @@ export class BattleScene extends Phaser.Scene {
           const spark = this.add.rectangle(d.x - dir * 12, GY - 28, 4, 4, P.lamp).setDepth(5); this.time.delayedCall(110, () => spark.destroy());
           if (m.heavy) this.float(who, '−2 stamina', 'st');
         } else {
-          d.set('dodge'); this.float(o, 'Miss', 'miss');
+          if (ev.empty) { this.say(`${nm} reels the anchor home through empty deck.`); this.float(who, 'Nothing in its path', 'miss'); } else { d.set('dodge'); this.float(o, 'Miss', 'miss'); }
           if (m.heavy || m.anim === 'haul') { sfx('wood'); this.chips(d.x - dir * 10, P.timberLight); } else if (m.anim === 'shot') { sfx('water'); }
         }
         this.refresh();
@@ -292,7 +342,7 @@ export class BattleScene extends Phaser.Scene {
         if (lunge) await this.tween(a.img, { x: home }, 90);
         if (v.f[who].pending && m.releaseOf) { v.f[who].pending = null; a.rest = 'idle'; }
         a.busy = false; a.toRest();
-        if (v.f[o].hp > 0) { d.busy = v.f[o].braced; d.set(v.f[o].braced ? 'brace' : v.f[o].pending ? 'hold' : 'idle0'); }
+        if (v.f[o].hp > 0) { const br = v.f[o].braced && !ev.broke; d.busy = br; d.set(br ? 'brace' : v.f[o].pending ? HOLD[v.f[o].pending!] ?? 'hold' : 'idle0'); }
         this.drawFx();
         await this.wait(120);
         void on;
@@ -351,9 +401,9 @@ export class BattleScene extends Phaser.Scene {
         h('div.quote', null, `${r?.foe ?? 'The champion'}: "${r?.foeLine ?? ''}"`),
         h('div.rewards', null, h('span.chip', null, ico('gold'), `+${pz.gold} gold`), r ? h('span.chip', null, ico('xp'), `+${r.xp} XP`) : null, h('span.chip', null, 'Pennant hoisted'), h('span.chip', null, ico('coin'), 'Cursed coin')),
         h('p.small', null, LOST[S.lost].coin),
-        h('div.row', null, w && S.main !== w.id ? btn(`Equip ${w.name}`, () => { if (equip(S, w.id)) { sfx('steel'); commit(); this.A[0].setWeapon(w.id); this.A[0].set('cheer'); render(); } }, 'brass', { 'data-equip-prize': w.id }) : w ? h('span.tag', null, 'In hand') : null,
+        h('div.row', null, w && S.main !== w.id ? btn(`Equip ${w.name}`, () => { if (equip(S, w.id)) { sfx('steel'); commit(); this.A[0].setWeapon(w.id, offDraw(S, w.id)); this.A[0].set('cheer'); render(); } }, 'brass', { 'data-equip-prize': w.id }) : w ? h('span.tag', null, 'In hand') : null,
           btn('◂ Harbour', () => { toHarbour(S); resetGate(); go(); }, '', { 'data-leave': '1' })),
-        w ? h('div.cmp', null, h('b', null, `Signature prize: ${w.name}`), h('div.small', null, FAMILY_INFO[w.family].trick + ' The same rule she used on you.'), ...w.moves.map((m) => moveRow(S.attrs, w.id, m))) : null,
+        w ? h('div.cmp', null, h('b', null, `Signature prize: ${w.name}`), h('div.small', null, FAMILY_INFO[w.family].trick + ' The same rule the champion used on you.'), ...w.moves.map((m) => moveRow(effAttrs(S), w.id, m))) : null,
         S.points > 0 ? attrSpender(render) : null] as (HTMLElement | null)[]).filter((x): x is HTMLElement => !!x));
       render();
     };

@@ -7,6 +7,8 @@ import { Shop } from './scenes/shop';
 import { Gate } from './scenes/gate';
 import { BattleScene } from './scenes/battle';
 import { unlock } from './sfx';
+import { advise } from './core/ai';
+import { shopPageFor } from './scenes/shop';
 
 applyLayout();
 const g = new Phaser.Game({
@@ -16,7 +18,7 @@ const g = new Phaser.Game({
   callbacks: { postBoot: () => { applyLayout(); applySettings(); go(); } },
 });
 setGame(g);
-(window as any).__dmp = { get S() { return S; }, get L() { return L; } };
+(window as any).__dmp = { get S() { return S; }, get L() { return L; }, fast: false, advise: () => (S.battle ? advise(S.battle, 0) : null), shopPageFor };
 
 let rt = 0;
 const onResize = () => { clearTimeout(rt); rt = window.setTimeout(() => { if (applyLayout() && game.isBooted) go(); }, 120); };
